@@ -3,6 +3,10 @@
     "notebooklm": {
       "command": "npx",
       "args": ["notebooklm-mcp@latest"]
+    },
+    "composio": {
+      "type": "http",
+      "url": "https://connect.composio.dev/mcp"
     }
   }
 }
