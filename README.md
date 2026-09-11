@@ -106,10 +106,13 @@ El CRM se puede "instalar" en el celular como una app, con su propio ícono en l
 
 **Requisito:** a diferencia de abrir `index.html` con doble click en la computadora, instalar en el celular requiere que la app esté publicada en algún servidor con **HTTPS** (el botón "Instalar"/"Agregar a pantalla de inicio" no aparece abriendo un archivo local desde el celular). Como ya tenés un proyecto Firebase para la sincronización en la nube (sección anterior), lo más simple es usar **Firebase Hosting**, que es gratis:
 
-1. Instala el CLI de Firebase una sola vez: `npm install -g firebase-tools`.
-2. Desde la carpeta del proyecto: `firebase login` (una vez) y `firebase use --add` para elegir tu proyecto.
-3. Publica: `firebase deploy --only hosting`. Te va a dar una URL tipo `https://tu-proyecto.web.app`.
+1. Desde una terminal (cmd/PowerShell en Windows, Terminal en Mac), parado en la carpeta del proyecto: `npx firebase-tools login` (una sola vez — abre el navegador para elegir tu cuenta de Google). No hace falta instalar nada de forma permanente: `npx` descarga y corre el CLI al vuelo.
+2. `npx firebase-tools use --add` → elegí tu proyecto de Firebase y ponele el alias `default`.
+3. `npx firebase-tools deploy --only hosting` → al terminar te muestra la URL final (algo como `https://tu-proyecto.web.app`).
 4. Compartí esa URL con el equipo. (Si no vas a usar sincronización en la nube, también sirve: la app funciona en modo 100% local incluso publicada así, cada celular/computadora guarda lo suyo — ver "Sincronización en la nube" para la diferencia.)
+5. Cada vez que se modifique el proyecto, repetir el paso 3 (`npx firebase-tools deploy --only hosting`) para publicar la versión nueva.
+
+**CRM de AkzoNobel Marine & Protective Coatings, ya publicado:** [https://default-8c09f.web.app](https://default-8c09f.web.app)
 
 **Para instalarla en el celular**, con esa URL abierta:
 - **Android (Chrome)**: aparece un banner "Agregar AkzoNobel CRM a la pantalla de inicio", o desde el menú ⋮ → "Instalar app".
