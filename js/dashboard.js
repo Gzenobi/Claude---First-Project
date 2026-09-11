@@ -23,8 +23,13 @@
       CRM.Storage.getAll('activities')
     ]).then(function (results) {
       if (CRM.Router.getCurrentRoute() !== 'dashboard') return;
-      var clients = results[0], projects = results[1], activities = results[2];
+      var clients = CRM.Users.applyScope(results[0]);
+      var projects = CRM.Users.applyScope(results[1]);
+      var activities = CRM.Users.applyScope(results[2]);
       var stages = CRM.Constants.PROJECT_STAGES;
+      var isAdmin = CRM.Users.isAdmin();
+      var activeFilter = CRM.Users.getActiveFilter();
+      var contributors = isAdmin ? CRM.Users.computeContributors(results[0], results[1], results[2]) : [];
 
       var openProjects = projects.filter(function (p) { return p.estado !== 'Ganado' && p.estado !== 'Perdido'; });
       var pipelineTotal = openProjects.reduce(function (s, p) { return s + Number(p.valor || 0); }, 0);
@@ -39,6 +44,13 @@
           '<div><h1>Dashboard ejecutivo</h1><p>Resumen comercial de cuentas industriales AkzoNobel</p></div>' +
           '<div class="view-actions"><button class="btn btn-secondary" id="dash-refresh">' + UI.icon('refresh-cw') + 'Actualizar</button></div>' +
         '</div>' +
+        (isAdmin ? (
+          '<div class="scope-banner">' + UI.icon('users') +
+          (activeFilter
+            ? ('Mostrando solo los datos de <strong>' + UI.escapeHtml(activeFilter) + '</strong>.')
+            : ('Vista de <strong>administrador</strong>: mostrando los datos consolidados de ' + contributors.length + ' vendedor(es).')) +
+          ' <a href="#/equipo">Ver equipo</a></div>'
+        ) : '') +
         '<div class="kpi-grid">' +
           kpiCard({ icon: 'building-2', accent: 'var(--akzo-navy)', value: UI.formatNumber(clients.length), label: 'Clientes activos' }) +
           kpiCard({ icon: 'briefcase', accent: 'var(--akzo-sky)', value: UI.formatNumber(projects.length), label: 'Proyectos totales' }) +

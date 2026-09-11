@@ -32,7 +32,7 @@
   }
 
   function buildColumns(clients) {
-    return [
+    var cols = [
       { key: 'nombreProyecto', label: 'Proyecto', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.nombreProyecto) + '</div><div class="cell-secondary">' + UI.escapeHtml(clientName(clients, r.clienteId)) + '</div>'; } },
       { key: 'segmento', label: 'Segmento', sortable: true, render: function (r) { return UI.escapeHtml(r.segmento); } },
       { key: 'estado', label: 'Etapa', sortable: true, render: function (r) { return UI.badge(r.estado, STAGE_BADGE[stageColor(r.estado)]); } },
@@ -41,6 +41,10 @@
       { key: 'fechaCierre', label: 'Cierre estimado', sortable: true, render: function (r) { return UI.formatDate(r.fechaCierre); } },
       { key: 'responsable', label: 'Responsable', sortable: true, render: function (r) { return UI.escapeHtml(r.responsable); } }
     ];
+    if (CRM.Users.isAdmin()) {
+      cols.push({ key: 'origenUsuario', label: 'Cargado por', sortable: true, render: function (r) { return UI.badge(r.origenUsuario || 'Sin asignar', r.origenUsuario === CRM.Users.SEED_LABEL ? 'badge-gray' : 'badge-navy'); } });
+    }
+    return cols;
   }
 
   function applyFiltersSort(projects) {
@@ -86,7 +90,7 @@
         field('probabilidad', 'Probabilidad (%)', 'number', project.probabilidad != null ? project.probabilidad : '', false) +
         field('valor', 'Valor estimado (USD)', 'number', project.valor, true) +
         field('fechaCierre', 'Fecha de cierre estimada', 'date', project.fechaCierre ? project.fechaCierre.slice(0, 10) : '', true) +
-        selectField('responsable', 'Responsable comercial', CRM.Constants.SALES_REPS, project.responsable, false) +
+        selectField('responsable', 'Responsable comercial', CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), project.responsable || (CRM.Users.getCurrentUser() || {}).name, false) +
         field('competidor', 'Competidor', 'text', project.competidor, false) +
         textareaField('notasTecnicas', 'Notas técnicas', project.notasTecnicas) +
       '</div>' +
@@ -155,6 +159,7 @@
               createdAt: existing ? existing.createdAt : now,
               updatedAt: now
             });
+            if (!existing) CRM.Users.stampOwner(record);
             CRM.Storage.put('projects', record).then(function () {
               UI.toast(existing ? 'Proyecto actualizado' : 'Proyecto creado', 'success');
               close();
@@ -169,7 +174,7 @@
 
   function render(container) {
     return Promise.all([CRM.Storage.getAll('projects'), CRM.Storage.getAll('clients')]).then(function (results) {
-      renderView(container, results[0], results[1]);
+      renderView(container, CRM.Users.applyScope(results[0]), results[1]);
     });
   }
 
@@ -189,7 +194,7 @@
         '<div class="search-input">' + UI.icon('search') + '<input type="search" id="project-search" placeholder="Buscar por proyecto, sistema o responsable..." value="' + UI.escapeHtml(state.search) + '"></div>' +
         '<select id="project-filter-segmento"><option value="">Todos los segmentos</option>' + UI.renderSelectOptions(CRM.Constants.SEGMENTS, state.segmento) + '</select>' +
         '<select id="project-filter-estado"><option value="">Todas las etapas</option>' + UI.renderSelectOptions(CRM.Constants.PROJECT_STAGE_KEYS, state.estado) + '</select>' +
-        '<select id="project-filter-responsable"><option value="">Todos los responsables</option>' + UI.renderSelectOptions(CRM.Constants.SALES_REPS, state.responsable) + '</select>' +
+        '<select id="project-filter-responsable"><option value="">Todos los responsables</option>' + UI.renderSelectOptions(CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), state.responsable) + '</select>' +
         '<span class="filter-chip-count">' + filtered.length + ' resultado(s)</span>' +
       '</div>' +
       '<div id="project-view-body"></div>';

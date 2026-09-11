@@ -269,6 +269,29 @@
     return html;
   }
 
+  /* ---------------- Import summary (shared by Configuración y Equipo) ---------------- */
+  var STORE_LABELS = { clients: 'Clientes', projects: 'Proyectos', activities: 'Actividades' };
+  function renderImportSummaryHTML(result) {
+    var html = '<div class="panel" style="border-color:var(--akzo-sky)"><div class="panel-body">';
+    html += '<div class="flex gap-12 mb-16" style="flex-wrap:wrap">';
+    Object.keys(result.combined).forEach(function (storeName) {
+      var r = result.combined[storeName];
+      html += '<span class="badge badge-sky">' + (STORE_LABELS[storeName] || storeName) + ': ' + r.added + ' nuevos · ' + r.updated + ' actualizados' + (r.skipped ? (' · ' + r.skipped + ' omitidos') : '') + '</span>';
+    });
+    html += '</div>';
+    html += '<table class="data-table"><thead><tr><th>Archivo</th><th>Resultado</th></tr></thead><tbody>';
+    result.perFile.forEach(function (f) {
+      if (f.ok) {
+        var parts = Object.keys(f.summary).map(function (s) { return (STORE_LABELS[s] || s) + ' +' + f.summary[s].added + '/~' + f.summary[s].updated; }).join(' · ');
+        html += '<tr><td class="cell-primary">' + escapeHtml(f.filename) + '</td><td>' + icon('check-circle', 'text-muted') + ' ' + parts + '</td></tr>';
+      } else {
+        html += '<tr><td class="cell-primary">' + escapeHtml(f.filename) + '</td><td style="color:var(--akzo-fuchsia)">' + icon('alert-circle') + ' ' + escapeHtml(f.error || 'No se pudo importar') + '</td></tr>';
+      }
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
   /* ---------------- Filter bar ---------------- */
   function renderSelectOptions(options, selected) {
     return options.map(function (opt) {
@@ -298,7 +321,8 @@
     paginate: paginate,
     renderPagination: renderPagination,
     renderTable: renderTable,
-    renderSelectOptions: renderSelectOptions
+    renderSelectOptions: renderSelectOptions,
+    renderImportSummaryHTML: renderImportSummaryHTML
   };
 
   CRM.UI = UI;

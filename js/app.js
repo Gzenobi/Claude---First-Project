@@ -13,14 +13,19 @@
     { route: 'clientes', label: 'Clientes', subtitle: 'Cuentas industriales', icon: 'building-2' },
     { route: 'proyectos', label: 'Proyectos', subtitle: 'Pipeline comercial', icon: 'briefcase' },
     { route: 'actividades', label: 'Actividades', subtitle: 'Tracking comercial', icon: 'calendar-clock' },
+    { route: 'equipo', label: 'Equipo', subtitle: 'Consolidado de todos los vendedores', icon: 'users', adminOnly: true },
     { route: 'configuracion', label: 'Datos y backup', subtitle: 'Exportar, importar y respaldar', icon: 'database' }
   ];
 
-  var CURRENT_USER = { name: 'Gabriel Zenobi', role: 'Ejecutivo comercial · Cono Sur', initials: 'GZ' };
+  function initials(name) {
+    return (name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+  }
 
   function buildShell() {
     var root = document.getElementById('app-root');
     var collapsed = CRM.Storage.getConfig('sidebarCollapsed', false);
+    var user = CRM.Users.getCurrentUser() || { name: 'Invitado', role: 'Vendedor' };
+    var isAdmin = CRM.Users.isAdmin();
 
     root.innerHTML =
       '<div class="app-shell' + (collapsed ? ' sidebar-collapsed' : '') + '">' +
@@ -39,8 +44,13 @@
             '<div><div class="topbar-title">AkzoNobel CRM</div><div class="topbar-subtitle"></div></div>' +
             '<div class="topbar-search"><input type="search" id="global-search" placeholder="Buscar cliente y presionar Enter...">' + UI.icon('search') + '</div>' +
             '<div class="topbar-actions">' +
+              (isAdmin ? '<div id="scope-chip"></div>' : '') +
               '<button class="icon-btn" id="btn-export-quick" title="Exportar datos">' + UI.icon('download') + '</button>' +
-              '<div class="topbar-user"><div class="avatar">' + CURRENT_USER.initials + '</div><div class="user-meta"><strong>' + CURRENT_USER.name + '</strong><span>' + CURRENT_USER.role + '</span></div></div>' +
+              '<div class="topbar-user" id="topbar-user-menu" title="Cambiar de usuario">' +
+                '<div class="avatar">' + initials(user.name) + '</div>' +
+                '<div class="user-meta"><strong>' + UI.escapeHtml(user.name) + '</strong><span>' + UI.escapeHtml(user.role) + (user.role === 'Administrador' ? '' : ' · Cono Sur') + '</span></div>' +
+                '<button class="icon-btn btn-logout" id="btn-switch-user" title="Cambiar de usuario">' + UI.icon('log-out') + '</button>' +
+              '</div>' +
             '</div>' +
           '</header>' +
           '<main class="content" id="app-content"></main>' +
@@ -48,13 +58,29 @@
       '</div>';
 
     var navEl = document.getElementById('sidebar-nav');
-    navEl.innerHTML = NAV_ITEMS.map(function (item) {
+    navEl.innerHTML = NAV_ITEMS.filter(function (item) { return !item.adminOnly || isAdmin; }).map(function (item) {
       return '<a href="#/' + item.route + '" class="nav-item" data-route="' + item.route + '" data-label="' + item.label + '" data-subtitle="' + item.subtitle + '">' +
         UI.icon(item.icon) + '<span>' + item.label + '</span></a>';
     }).join('');
 
     UI.refreshIcons();
     wireShellEvents();
+    if (isAdmin) renderScopeChip();
+  }
+
+  function renderScopeChip() {
+    var el = document.getElementById('scope-chip');
+    if (!el) return;
+    var filter = CRM.Users.getActiveFilter();
+    if (!filter) { el.innerHTML = ''; return; }
+    el.innerHTML = '<span class="scope-chip">' + UI.icon('filter') + 'Viendo solo: <strong>' + UI.escapeHtml(filter) + '</strong>' +
+      '<button type="button" id="btn-clear-scope" title="Ver todo el equipo">' + UI.icon('x') + '</button></span>';
+    UI.refreshIcons();
+    document.getElementById('btn-clear-scope').addEventListener('click', function () {
+      CRM.Users.setActiveFilter(null);
+      renderScopeChip();
+      CRM.Router.refresh();
+    });
   }
 
   function wireShellEvents() {
@@ -82,18 +108,41 @@
       CRM.Clients.state.page = 1;
       CRM.Router.navigate('clientes');
     });
+
+    document.getElementById('btn-switch-user').addEventListener('click', function (e) {
+      e.stopPropagation();
+      UI.confirmDialog({
+        title: 'Cambiar de usuario',
+        message: 'Vas a cerrar la sesión de este perfil local. La próxima persona que use este computador deberá identificarse de nuevo. Los datos guardados no se borran.',
+        confirmText: 'Cambiar de usuario'
+      }).then(function (ok) {
+        if (!ok) return;
+        CRM.Users.clearCurrentUser();
+        global.location.hash = '';
+        global.location.reload();
+      });
+    });
   }
 
   /* ---------------- Configuración / Datos y backup view ---------------- */
   function renderSettingsView(container) {
     var backupInfo = CRM.Storage.getBackupInfo();
+    var user = CRM.Users.getCurrentUser();
+    var isAdmin = CRM.Users.isAdmin();
     container.innerHTML =
-      '<div class="view-header"><div><h1>Datos y backup</h1><p>Exporta, importa y respalda la información comercial almacenada localmente</p></div></div>' +
+      '<div class="view-header"><div><h1>Datos y backup</h1><p>Exporta tu trabajo para enviarlo al administrador, o respalda tu información local</p></div></div>' +
+      '<div class="panel mb-16"><div class="panel-header"><h3>' + UI.icon('send') + ' Enviar mi trabajo al administrador</h3></div><div class="panel-body">' +
+        '<p class="text-muted mb-16">Genera un archivo con <strong>solo tus clientes, proyectos y actividades</strong> (usuario: ' + UI.escapeHtml(user ? user.name : '—') + ') y envíaselo por email al administrador. Él lo sube en la sección "Equipo" para consolidar los datos de todo el equipo.</p>' +
+        '<div class="flex gap-12" style="flex-wrap:wrap">' +
+          '<button class="btn btn-primary" id="btn-export-mine-xlsx">' + UI.icon('file-spreadsheet') + 'Exportar mi trabajo (XLSX)</button>' +
+          '<button class="btn btn-secondary" id="btn-export-mine-json">' + UI.icon('file-json') + 'Exportar mi trabajo (JSON)</button>' +
+        '</div>' +
+      '</div></div>' +
       '<div class="charts-grid">' +
-        '<div class="panel"><div class="panel-header"><h3>' + UI.icon('download') + ' Exportar datos</h3></div><div class="panel-body">' +
-          '<p class="text-muted mb-16">Descarga toda la información del CRM en el formato que necesites.</p>' +
+        '<div class="panel"><div class="panel-header"><h3>' + UI.icon('download') + ' Exportar todo</h3></div><div class="panel-body">' +
+          '<p class="text-muted mb-16">Descarga toda la información visible en este computador (incluye datos de ejemplo y, si eres administrador, de todo el equipo consolidado).</p>' +
           '<div class="flex gap-12" style="flex-wrap:wrap">' +
-            '<button class="btn btn-primary" id="btn-export-xlsx">' + UI.icon('file-spreadsheet') + 'Exportar XLSX</button>' +
+            '<button class="btn btn-secondary" id="btn-export-xlsx">' + UI.icon('file-spreadsheet') + 'Exportar XLSX</button>' +
             '<button class="btn btn-secondary" id="btn-export-json">' + UI.icon('file-json') + 'Exportar JSON</button>' +
           '</div>' +
           '<p class="text-muted mt-16" style="font-size:12px">Exportar CSV por módulo:</p>' +
@@ -103,10 +152,11 @@
             '<button class="btn btn-outline btn-sm" data-csv="activities">Actividades.csv</button>' +
           '</div>' +
         '</div></div>' +
-        '<div class="panel"><div class="panel-header"><h3>' + UI.icon('upload') + ' Importar datos</h3></div><div class="panel-body">' +
-          '<p class="text-muted mb-16">Importa un archivo XLSX o JSON exportado previamente. Los registros se combinan automáticamente por ID; si no existe, se detectan duplicados por nombre/email y se actualizan.</p>' +
-          '<input type="file" id="import-file" accept=".xlsx,.json,.csv" class="hidden">' +
-          '<button class="btn btn-primary" id="btn-import-trigger">' + UI.icon('upload') + 'Seleccionar archivo</button>' +
+        '<div class="panel"><div class="panel-header"><h3>' + UI.icon('upload') + ' Importar / restaurar</h3></div><div class="panel-body">' +
+          '<p class="text-muted mb-16">Importa uno o varios archivos XLSX/JSON exportados previamente. Los registros se combinan por ID; si no existe, se detectan duplicados por nombre/email y se actualizan — nunca se duplican.' +
+          (isAdmin ? ' Para consolidar el trabajo de todo el equipo con estadísticas por vendedor, usa la sección <a href="#/equipo">Equipo</a>.' : '') + '</p>' +
+          '<input type="file" id="import-file" accept=".xlsx,.json,.csv" class="hidden" multiple>' +
+          '<button class="btn btn-primary" id="btn-import-trigger">' + UI.icon('upload') + 'Seleccionar archivo(s)</button>' +
           '<div id="import-summary" class="mt-16"></div>' +
         '</div></div>' +
       '</div>' +
@@ -118,6 +168,12 @@
 
     UI.refreshIcons();
 
+    document.getElementById('btn-export-mine-xlsx').addEventListener('click', function () {
+      CRM.Export.exportAllToXLSX({ onlyMine: true }).then(function () { UI.toast('Tu archivo XLSX fue descargado — ya puedes enviarlo por email', 'success'); });
+    });
+    document.getElementById('btn-export-mine-json').addEventListener('click', function () {
+      CRM.Export.exportAllToJSON({ onlyMine: true }).then(function () { UI.toast('Tu archivo JSON fue descargado — ya puedes enviarlo por email', 'success'); });
+    });
     document.getElementById('btn-export-xlsx').addEventListener('click', function () {
       CRM.Export.exportAllToXLSX().then(function () { UI.toast('Archivo XLSX descargado', 'success'); });
     });
@@ -133,21 +189,14 @@
     var fileInput = document.getElementById('import-file');
     document.getElementById('btn-import-trigger').addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function () {
-      var file = fileInput.files[0];
-      if (!file) return;
+      if (!fileInput.files.length) return;
       var summaryEl = document.getElementById('import-summary');
       summaryEl.innerHTML = UI.loadingStateHTML('Importando datos...');
-      var ext = file.name.split('.').pop().toLowerCase();
-      var task = ext === 'json' ? CRM.Import.importJSONFile(file) : CRM.Import.importXLSXFile(file);
-      task.then(function (summary) {
-        var html = '<div class="panel" style="border-color:var(--akzo-sky)"><div class="panel-body">';
-        Object.keys(summary).forEach(function (storeName) {
-          var r = summary[storeName];
-          html += '<p><strong>' + storeName + ':</strong> ' + r.added + ' agregados, ' + r.updated + ' actualizados' + (r.skipped ? (', ' + r.skipped + ' omitidos') : '') + '</p>';
-        });
-        html += '</div></div>';
-        summaryEl.innerHTML = html;
-        UI.toast('Importación completada correctamente', 'success');
+      CRM.Import.importFiles(fileInput.files).then(function (result) {
+        summaryEl.innerHTML = UI.renderImportSummaryHTML(result);
+        UI.refreshIcons();
+        var failed = result.perFile.filter(function (f) { return !f.ok; }).length;
+        UI.toast(failed ? ('Importación completada con ' + failed + ' archivo(s) con error') : 'Importación completada correctamente', failed ? 'warning' : 'success');
         fileInput.value = '';
       }).catch(function (err) {
         console.error(err);
@@ -173,6 +222,9 @@
     return CRM.Storage.count('clients').then(function (n) {
       if (n > 0) return false;
       var data = CRM.MockData.generateAll();
+      [data.clients, data.projects, data.activities].forEach(function (list) {
+        list.forEach(function (r) { r.origenUsuario = CRM.Users.SEED_LABEL; });
+      });
       return Promise.all([
         CRM.Storage.bulkPut('clients', data.clients),
         CRM.Storage.bulkPut('projects', data.projects),
@@ -182,12 +234,13 @@
   }
 
   /* ---------------- Bootstrap ---------------- */
-  function init() {
+  function startApp() {
     buildShell();
     CRM.Router.register('dashboard', CRM.Dashboard.render);
     CRM.Router.register('clientes', CRM.Clients.render);
     CRM.Router.register('proyectos', CRM.Projects.render);
     CRM.Router.register('actividades', CRM.Activities.render);
+    CRM.Router.register('equipo', CRM.Team.render);
     CRM.Router.register('configuracion', renderSettingsView);
 
     CRM.Storage.init()
@@ -203,7 +256,17 @@
       });
   }
 
-  CRM.App = { init: init };
+  function init() {
+    var root = document.getElementById('app-root');
+    var user = CRM.Users.getCurrentUser();
+    if (!user) {
+      CRM.Users.renderLoginScreen(root, function () { startApp(); });
+      return;
+    }
+    startApp();
+  }
+
+  CRM.App = { init: init, renderScopeChip: renderScopeChip };
   document.addEventListener('DOMContentLoaded', init);
 
 })(window);

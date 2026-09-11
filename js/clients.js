@@ -16,14 +16,20 @@
     pageSize: 8
   };
 
-  var COLUMNS = [
-    { key: 'nombre', label: 'Cliente', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.nombre) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.planta) + '</div>'; } },
-    { key: 'segmento', label: 'Segmento', sortable: true, render: function (r) { return UI.badge(r.segmento, segmentBadgeClass(r.segmento)); } },
-    { key: 'ciudad', label: 'Ubicación', sortable: true, render: function (r) { return UI.escapeHtml(r.ciudad) + ', ' + UI.escapeHtml(r.pais); } },
-    { key: 'contacto', label: 'Contacto', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.contacto) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.email) + '</div>'; } },
-    { key: 'potencialAnual', label: 'Potencial anual', sortable: true, align: 'right', render: function (r) { return UI.formatCurrency(r.potencialAnual); } },
-    { key: 'competidor', label: 'Competidor', sortable: true, render: function (r) { return UI.escapeHtml(r.competidor || '—'); } }
-  ];
+  function buildColumns() {
+    var cols = [
+      { key: 'nombre', label: 'Cliente', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.nombre) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.planta) + '</div>'; } },
+      { key: 'segmento', label: 'Segmento', sortable: true, render: function (r) { return UI.badge(r.segmento, segmentBadgeClass(r.segmento)); } },
+      { key: 'ciudad', label: 'Ubicación', sortable: true, render: function (r) { return UI.escapeHtml(r.ciudad) + ', ' + UI.escapeHtml(r.pais); } },
+      { key: 'contacto', label: 'Contacto', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.contacto) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.email) + '</div>'; } },
+      { key: 'potencialAnual', label: 'Potencial anual', sortable: true, align: 'right', render: function (r) { return UI.formatCurrency(r.potencialAnual); } },
+      { key: 'competidor', label: 'Competidor', sortable: true, render: function (r) { return UI.escapeHtml(r.competidor || '—'); } }
+    ];
+    if (CRM.Users.isAdmin()) {
+      cols.push({ key: 'origenUsuario', label: 'Vendedor', sortable: true, render: function (r) { return UI.badge(r.origenUsuario || 'Sin asignar', r.origenUsuario === CRM.Users.SEED_LABEL ? 'badge-gray' : 'badge-navy'); } });
+    }
+    return cols;
+  }
 
   function segmentBadgeClass(seg) {
     var map = { 'Minería': 'badge-navy', 'Oil & Gas': 'badge-ultramarine', 'Energía': 'badge-sky', 'Infraestructura': 'badge-purple', 'Manufactura': 'badge-violet' };
@@ -133,6 +139,7 @@
               createdAt: existing ? existing.createdAt : now,
               updatedAt: now
             });
+            if (!existing) CRM.Users.stampOwner(record);
             CRM.Storage.put('clients', record).then(function () {
               UI.toast(existing ? 'Cliente actualizado correctamente' : 'Cliente creado correctamente', 'success');
               close();
@@ -147,7 +154,7 @@
 
   function render(container) {
     return CRM.Storage.getAll('clients').then(function (clients) {
-      renderView(container, clients);
+      renderView(container, CRM.Users.applyScope(clients));
     });
   }
 
@@ -170,7 +177,7 @@
             '<span class="filter-chip-count">' + filtered.length + ' resultado(s)</span>' +
           '</div>' +
           UI.renderTable({
-            columns: COLUMNS,
+            columns: buildColumns(),
             rows: page.items,
             sortState: state.sort,
             emptyState: { icon: 'building-2', title: 'Sin clientes', message: 'Aún no hay clientes que coincidan con la búsqueda.', actionLabel: 'Nuevo cliente', actionId: 'empty-new-client' },

@@ -71,7 +71,7 @@
         selectField('proyectoId', 'Proyecto relacionado', projectOptions, activity.proyectoId, false) +
         field('titulo', 'Título', 'text', activity.titulo, true, 'span-2') +
         field('fecha', 'Fecha y hora', 'datetime-local', activity.fecha ? toLocalInputValue(activity.fecha) : '', true) +
-        selectField('responsable', 'Responsable', CRM.Constants.SALES_REPS, activity.responsable, false) +
+        selectField('responsable', 'Responsable', CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), activity.responsable || (CRM.Users.getCurrentUser() || {}).name, false) +
         textareaField('descripcion', 'Descripción', activity.descripcion) +
       '</div>' +
     '</form>';
@@ -143,6 +143,7 @@
               createdAt: existing ? existing.createdAt : now,
               updatedAt: now
             });
+            if (!existing) CRM.Users.stampOwner(record);
             CRM.Storage.put('activities', record).then(function () {
               UI.toast(existing ? 'Actividad actualizada' : 'Actividad creada', 'success');
               close();
@@ -166,7 +167,7 @@
   function render(container) {
     return Promise.all([CRM.Storage.getAll('activities'), CRM.Storage.getAll('clients'), CRM.Storage.getAll('projects')])
       .then(function (results) { return recomputeOverdue(results[0]).then(function (acts) { return [acts, results[1], results[2]]; }); })
-      .then(function (results) { renderView(container, results[0], results[1], results[2]); });
+      .then(function (results) { renderView(container, CRM.Users.applyScope(results[0]), results[1], results[2]); });
   }
 
   function clientName(clients, id) {
@@ -195,7 +196,7 @@
         '<div class="search-input">' + UI.icon('search') + '<input type="search" id="activity-search" placeholder="Buscar actividad..." value="' + UI.escapeHtml(state.search) + '"></div>' +
         '<select id="activity-filter-tipo"><option value="">Todos los tipos</option>' + UI.renderSelectOptions(CRM.Constants.ACTIVITY_TYPES, state.tipo) + '</select>' +
         '<select id="activity-filter-estado"><option value="">Todos los estados</option>' + UI.renderSelectOptions(CRM.Constants.ACTIVITY_STATES, state.estado) + '</select>' +
-        '<select id="activity-filter-responsable"><option value="">Todos los responsables</option>' + UI.renderSelectOptions(CRM.Constants.SALES_REPS, state.responsable) + '</select>' +
+        '<select id="activity-filter-responsable"><option value="">Todos los responsables</option>' + UI.renderSelectOptions(CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), state.responsable) + '</select>' +
         '<button class="btn btn-outline btn-sm" id="activity-toggle-order">' + UI.icon('arrow-up-down') + (state.order === 'desc' ? 'Más recientes' : 'Más antiguas') + '</button>' +
         '<span class="filter-chip-count">' + filtered.length + ' resultado(s)</span>' +
       '</div>' +
@@ -211,7 +212,9 @@
       filtered.forEach(function (a) {
         html += '<div class="timeline-item' + (a.estado === 'Vencida' ? ' overdue' : '') + '" style="--tl-accent:' + STATE_ACCENT[a.estado] + '">' +
           '<div class="tl-header">' + UI.icon(TYPE_ICON[a.tipo] || 'calendar') + '<span class="tl-title">' + UI.escapeHtml(a.titulo) + '</span>' +
-          UI.badge(a.estado, STATE_BADGE[a.estado]) + '<span class="tl-date">' + UI.formatDateTime(a.fecha) + '</span></div>' +
+          UI.badge(a.estado, STATE_BADGE[a.estado]) +
+          (CRM.Users.isAdmin() ? UI.badge(a.origenUsuario || 'Sin asignar', a.origenUsuario === CRM.Users.SEED_LABEL ? 'badge-gray' : 'badge-navy') : '') +
+          '<span class="tl-date">' + UI.formatDateTime(a.fecha) + '</span></div>' +
           '<div class="tl-body">' + UI.escapeHtml(clientName(clients, a.clienteId)) + ' · Responsable: ' + UI.escapeHtml(a.responsable || '—') + '<br>' + UI.escapeHtml(a.descripcion || '') + '</div>' +
           '<div class="flex gap-8 mt-8">' +
             (a.estado !== 'Completada' ? '<button class="btn btn-sm btn-secondary btn-complete" data-id="' + a.id + '">' + UI.icon('check') + 'Marcar completada</button>' : '') +
