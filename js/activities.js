@@ -13,8 +13,14 @@
     tipo: '',
     estado: '',
     responsable: '',
-    order: 'desc'
+    order: 'desc',
+    view: 'timeline',
+    calendarCursor: startOfMonth(new Date())
   };
+
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
   var TYPE_ICON = {
     'Visita': 'map-pin', 'Llamada': 'phone', 'Email': 'mail', 'Reunión': 'users',
@@ -185,7 +191,10 @@
     container.innerHTML =
       '<div class="view-header">' +
         '<div><h1>Actividades comerciales</h1><p>Tracking de visitas, llamadas, reuniones e inspecciones técnicas</p></div>' +
-        '<div class="view-actions"><button class="btn btn-primary" id="btn-new-activity">' + UI.icon('plus') + 'Nueva actividad</button></div>' +
+        '<div class="view-actions">' +
+          '<div class="view-tabs"><button class="view-tab" data-view="timeline">Timeline</button><button class="view-tab" data-view="calendar">Calendario</button></div>' +
+          '<button class="btn btn-primary" id="btn-new-activity">' + UI.icon('plus') + 'Nueva actividad</button>' +
+        '</div>' +
       '</div>' +
       '<div class="kpi-grid">' +
         '<div class="kpi-card" style="--kpi-accent:var(--akzo-navy)"><div class="kpi-icon">' + UI.icon('clock') + '</div><div class="kpi-value">' + pending + '</div><div class="kpi-label">Pendientes</div></div>' +
@@ -197,18 +206,38 @@
         '<select id="activity-filter-tipo"><option value="">Todos los tipos</option>' + UI.renderSelectOptions(CRM.Constants.ACTIVITY_TYPES, state.tipo) + '</select>' +
         '<select id="activity-filter-estado"><option value="">Todos los estados</option>' + UI.renderSelectOptions(CRM.Constants.ACTIVITY_STATES, state.estado) + '</select>' +
         '<select id="activity-filter-responsable"><option value="">Todos los responsables</option>' + UI.renderSelectOptions(CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), state.responsable) + '</select>' +
-        '<button class="btn btn-outline btn-sm" id="activity-toggle-order">' + UI.icon('arrow-up-down') + (state.order === 'desc' ? 'Más recientes' : 'Más antiguas') + '</button>' +
+        (state.view === 'timeline' ? '<button class="btn btn-outline btn-sm" id="activity-toggle-order">' + UI.icon('arrow-up-down') + (state.order === 'desc' ? 'Más recientes' : 'Más antiguas') + '</button>' : '') +
         '<span class="filter-chip-count">' + filtered.length + ' resultado(s)</span>' +
       '</div>' +
-      '<div class="panel"><div class="panel-body" id="activity-timeline"></div></div>';
+      '<div id="activity-view-body"></div>';
 
     UI.refreshIcons();
+    container.querySelectorAll('.view-tab').forEach(function (tab) {
+      tab.classList.toggle('active', tab.getAttribute('data-view') === state.view);
+      tab.addEventListener('click', function () { state.view = tab.getAttribute('data-view'); renderView(container, activities, clients, projects); });
+    });
 
-    var timelineEl = document.getElementById('activity-timeline');
+    var bodyEl = document.getElementById('activity-view-body');
+    if (state.view === 'calendar') renderCalendarBody(bodyEl, filtered, clients, activities, projects, container);
+    else renderTimelineBody(bodyEl, filtered, clients, activities, projects, container);
+
+    document.getElementById('btn-new-activity').addEventListener('click', function () {
+      openActivityForm(null, clients, projects, function () { CRM.Router.refresh(); });
+    });
+
+    document.getElementById('activity-search').addEventListener('input', UI.debounce(function (e) { state.search = e.target.value; renderView(container, activities, clients, projects); }, 250));
+    document.getElementById('activity-filter-tipo').addEventListener('change', function (e) { state.tipo = e.target.value; renderView(container, activities, clients, projects); });
+    document.getElementById('activity-filter-estado').addEventListener('change', function (e) { state.estado = e.target.value; renderView(container, activities, clients, projects); });
+    document.getElementById('activity-filter-responsable').addEventListener('change', function (e) { state.responsable = e.target.value; renderView(container, activities, clients, projects); });
+    var orderBtn = document.getElementById('activity-toggle-order');
+    if (orderBtn) orderBtn.addEventListener('click', function () { state.order = state.order === 'desc' ? 'asc' : 'desc'; renderView(container, activities, clients, projects); });
+  }
+
+  function renderTimelineBody(bodyEl, filtered, clients, activities, projects, container) {
     if (filtered.length === 0) {
-      timelineEl.innerHTML = UI.emptyStateHTML({ icon: 'calendar', title: 'Sin actividades', message: 'No hay actividades que coincidan con los filtros aplicados.', actionLabel: 'Nueva actividad', actionId: 'empty-new-activity' });
+      bodyEl.innerHTML = '<div class="panel"><div class="panel-body">' + UI.emptyStateHTML({ icon: 'calendar', title: 'Sin actividades', message: 'No hay actividades que coincidan con los filtros aplicados.', actionLabel: 'Nueva actividad', actionId: 'empty-new-activity' }) + '</div></div>';
     } else {
-      var html = '<div class="timeline">';
+      var html = '<div class="panel"><div class="panel-body"><div class="timeline">';
       filtered.forEach(function (a) {
         html += '<div class="timeline-item' + (a.estado === 'Vencida' ? ' overdue' : '') + '" style="--tl-accent:' + STATE_ACCENT[a.estado] + '">' +
           '<div class="tl-header">' + UI.icon(TYPE_ICON[a.tipo] || 'calendar') + '<span class="tl-title">' + UI.escapeHtml(a.titulo) + '</span>' +
@@ -223,24 +252,15 @@
           '</div>' +
         '</div>';
       });
-      html += '</div>';
-      timelineEl.innerHTML = html;
+      html += '</div></div></div>';
+      bodyEl.innerHTML = html;
     }
     UI.refreshIcons();
 
-    document.getElementById('btn-new-activity').addEventListener('click', function () {
-      openActivityForm(null, clients, projects, function () { CRM.Router.refresh(); });
-    });
     var emptyBtn = document.getElementById('empty-new-activity');
     if (emptyBtn) emptyBtn.addEventListener('click', function () { openActivityForm(null, clients, projects, function () { CRM.Router.refresh(); }); });
 
-    document.getElementById('activity-search').addEventListener('input', UI.debounce(function (e) { state.search = e.target.value; renderView(container, activities, clients, projects); }, 250));
-    document.getElementById('activity-filter-tipo').addEventListener('change', function (e) { state.tipo = e.target.value; renderView(container, activities, clients, projects); });
-    document.getElementById('activity-filter-estado').addEventListener('change', function (e) { state.estado = e.target.value; renderView(container, activities, clients, projects); });
-    document.getElementById('activity-filter-responsable').addEventListener('change', function (e) { state.responsable = e.target.value; renderView(container, activities, clients, projects); });
-    document.getElementById('activity-toggle-order').addEventListener('click', function () { state.order = state.order === 'desc' ? 'asc' : 'desc'; renderView(container, activities, clients, projects); });
-
-    container.querySelectorAll('.btn-complete').forEach(function (btn) {
+    bodyEl.querySelectorAll('.btn-complete').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var activity = activities.filter(function (a) { return a.id === btn.getAttribute('data-id'); })[0];
         activity.estado = 'Completada';
@@ -248,19 +268,137 @@
         CRM.Storage.put('activities', activity).then(function () { UI.toast('Actividad marcada como completada', 'success'); CRM.Router.refresh(); });
       });
     });
-    container.querySelectorAll('.btn-edit').forEach(function (btn) {
+    bodyEl.querySelectorAll('.btn-edit').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var activity = activities.filter(function (a) { return a.id === btn.getAttribute('data-id'); })[0];
         openActivityForm(activity, clients, projects, function () { CRM.Router.refresh(); });
       });
     });
-    container.querySelectorAll('.btn-delete').forEach(function (btn) {
+    bodyEl.querySelectorAll('.btn-delete').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-id');
         UI.confirmDialog({ title: 'Eliminar actividad', message: '¿Deseas eliminar esta actividad?', confirmText: 'Eliminar', danger: true }).then(function (ok) {
           if (!ok) return;
           CRM.Storage.remove('activities', id).then(function () { UI.toast('Actividad eliminada', 'success'); CRM.Router.refresh(); });
         });
+      });
+    });
+  }
+
+  /* ---------------- Vista calendario (mensual) ---------------- */
+
+  var MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  function buildCalendarCells(cursor) {
+    var firstOfMonth = startOfMonth(cursor);
+    var firstWeekday = (firstOfMonth.getDay() + 6) % 7; // 0=Lunes
+    var gridStart = new Date(firstOfMonth);
+    gridStart.setDate(gridStart.getDate() - firstWeekday);
+    var cells = [];
+    for (var i = 0; i < 42; i++) {
+      var d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      cells.push(d);
+    }
+    return cells;
+  }
+
+  function activityRowHTML(a, clients) {
+    return '<div class="cal-day-activity" data-id="' + a.id + '" title="' + UI.escapeHtml(a.titulo) + '">' +
+      '<span class="cal-dot" style="background:' + STATE_ACCENT[a.estado] + '"></span>' +
+      UI.escapeHtml(a.titulo) + '</div>';
+  }
+
+  function renderCalendarBody(bodyEl, filtered, clients, activities, projects, container) {
+    var byDay = {};
+    filtered.forEach(function (a) {
+      var key = dateKey(new Date(a.fecha));
+      (byDay[key] = byDay[key] || []).push(a);
+    });
+
+    var cursor = state.calendarCursor;
+    var today = new Date();
+    var cells = buildCalendarCells(cursor);
+
+    var html = '<div class="panel"><div class="cal-toolbar">' +
+      '<div class="cal-toolbar-title">' + MONTH_NAMES[cursor.getMonth()] + ' ' + cursor.getFullYear() + '</div>' +
+      '<div class="flex gap-8">' +
+        '<button class="btn btn-outline btn-sm" id="cal-prev">' + UI.icon('chevron-left') + '</button>' +
+        '<button class="btn btn-outline btn-sm" id="cal-today">Hoy</button>' +
+        '<button class="btn btn-outline btn-sm" id="cal-next">' + UI.icon('chevron-right') + '</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="cal-grid">';
+
+    WEEKDAY_LABELS.forEach(function (w) { html += '<div class="cal-weekday">' + w + '</div>'; });
+
+    cells.forEach(function (d) {
+      var key = dateKey(d);
+      var dayActivities = (byDay[key] || []).slice().sort(function (a, b) { return new Date(a.fecha) - new Date(b.fecha); });
+      var isOtherMonth = d.getMonth() !== cursor.getMonth();
+      var isToday = sameDay(d, today);
+      var visible = dayActivities.slice(0, 3);
+      var extra = dayActivities.length - visible.length;
+
+      html += '<div class="cal-day' + (isOtherMonth ? ' is-other-month' : '') + (isToday ? ' is-today' : '') + '" data-date="' + key + '">' +
+        '<div class="cal-day-num">' + d.getDate() + '</div>' +
+        '<div class="cal-day-activities">' +
+          visible.map(function (a) { return activityRowHTML(a, clients); }).join('') +
+          (extra > 0 ? '<div class="cal-day-more" data-date="' + key + '">+' + extra + ' más</div>' : '') +
+        '</div>' +
+      '</div>';
+    });
+
+    html += '</div></div>';
+    bodyEl.innerHTML = html;
+    UI.refreshIcons();
+
+    document.getElementById('cal-prev').addEventListener('click', function () {
+      state.calendarCursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
+      renderView(container, activities, clients, projects);
+    });
+    document.getElementById('cal-next').addEventListener('click', function () {
+      state.calendarCursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      renderView(container, activities, clients, projects);
+    });
+    document.getElementById('cal-today').addEventListener('click', function () {
+      state.calendarCursor = startOfMonth(new Date());
+      renderView(container, activities, clients, projects);
+    });
+
+    bodyEl.querySelectorAll('.cal-day-activity').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var activity = activities.filter(function (a) { return a.id === el.getAttribute('data-id'); })[0];
+        if (activity) openActivityForm(activity, clients, projects, function () { CRM.Router.refresh(); });
+      });
+    });
+    bodyEl.querySelectorAll('.cal-day').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var key = el.getAttribute('data-date');
+        openDayDetailModal(key, byDay[key] || [], clients, projects);
+      });
+    });
+  }
+
+  function openDayDetailModal(key, dayActivities, clients, projects) {
+    var d = new Date(key + 'T00:00:00');
+    var title = d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var body = dayActivities.length === 0
+      ? UI.emptyStateHTML({ icon: 'calendar', title: 'Sin actividades', message: 'No hay actividades agendadas este día.' })
+      : '<div class="timeline">' + dayActivities.slice().sort(function (a, b) { return new Date(a.fecha) - new Date(b.fecha); }).map(function (a) {
+          return '<div class="timeline-item' + (a.estado === 'Vencida' ? ' overdue' : '') + '" style="--tl-accent:' + STATE_ACCENT[a.estado] + '">' +
+            '<div class="tl-header">' + UI.icon(TYPE_ICON[a.tipo] || 'calendar') + '<span class="tl-title">' + UI.escapeHtml(a.titulo) + '</span>' +
+            UI.badge(a.estado, STATE_BADGE[a.estado]) + '<span class="tl-date">' + UI.formatDateTime(a.fecha) + '</span></div>' +
+            '<div class="tl-body">' + UI.escapeHtml(clientName(clients, a.clienteId)) + ' · Responsable: ' + UI.escapeHtml(a.responsable || '—') + '</div>' +
+          '</div>';
+        }).join('') + '</div>';
+    var modal = UI.openModal({ title: title.charAt(0).toUpperCase() + title.slice(1), size: 'lg', bodyHTML: body });
+    modal.body.querySelectorAll('.timeline-item').forEach(function (el, idx) {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', function () {
+        openActivityForm(dayActivities[idx], clients, projects, function () { modal.close(); CRM.Router.refresh(); });
       });
     });
   }
