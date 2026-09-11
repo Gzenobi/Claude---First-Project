@@ -37,7 +37,7 @@
             '<div class="brand-text">Marine &amp; Protective Coatings<small>CRM comercial</small></div>' +
           '</div>' +
           '<nav class="sidebar-nav" id="sidebar-nav"></nav>' +
-          '<div class="sidebar-footer">AkzoNobel CRM v1.0<br>100% local · sin servidor</div>' +
+          '<div class="sidebar-footer">AkzoNobel CRM v1.0<br>' + (CRM.Cloud && CRM.Cloud.isConfigured() ? 'Sincronizado en la nube' : '100% local · sin servidor') + '</div>' +
         '</aside>' +
         '<div class="main-col">' +
           '<header class="topbar">' +
@@ -118,9 +118,13 @@
         confirmText: 'Cambiar de usuario'
       }).then(function (ok) {
         if (!ok) return;
-        CRM.Users.clearCurrentUser();
-        global.location.hash = '';
-        global.location.reload();
+        // clearCurrentUser() es síncrono en modo local, pero en modo nube
+        // devuelve la promesa de signOut() de Firebase — hay que esperarla
+        // antes de recargar para no releer una sesión todavía en caché.
+        Promise.resolve(CRM.Users.clearCurrentUser()).then(function () {
+          global.location.hash = '';
+          global.location.reload();
+        });
       });
     });
   }
@@ -130,8 +134,12 @@
     var backupInfo = CRM.Storage.getBackupInfo();
     var user = CRM.Users.getCurrentUser();
     var isAdmin = CRM.Users.isAdmin();
+    var cloudOn = !!(CRM.Cloud && CRM.Cloud.isConfigured());
     container.innerHTML =
       '<div class="view-header"><div><h1>Datos y backup</h1><p>Exporta tu trabajo para enviarlo al administrador, o respalda tu información local</p></div></div>' +
+      (cloudOn ?
+        '<div class="panel mb-16"><div class="panel-body"><p>' + UI.icon('cloud') + ' <strong>Sincronización en la nube activa.</strong> Tus datos se guardan en Firebase y están disponibles en cualquier dispositivo donde inicies sesión con <strong>' + UI.escapeHtml((user && user.email) || '') + '</strong>. Las secciones de exportar/importar de abajo siguen sirviendo para respaldos manuales.</p></div></div>'
+        : '') +
       '<div class="panel mb-16"><div class="panel-header"><h3>' + UI.icon('send') + ' Enviar mi trabajo al administrador</h3></div><div class="panel-body">' +
         '<p class="text-muted mb-16">Genera un archivo con <strong>solo tus clientes, proyectos y actividades</strong> (usuario: ' + UI.escapeHtml(user ? user.name : '—') + ') y envíaselo por email al administrador. Él lo sube en la sección "Equipo" para consolidar los datos de todo el equipo.</p>' +
         '<div class="flex gap-12" style="flex-wrap:wrap">' +
@@ -288,12 +296,13 @@
 
   function init() {
     var root = document.getElementById('app-root');
-    var user = CRM.Users.getCurrentUser();
-    if (!user) {
-      CRM.Users.renderLoginScreen(root, function () { startApp(); });
-      return;
-    }
-    startApp();
+    CRM.Users.ensureSession(function (user) {
+      if (!user) {
+        CRM.Users.renderLoginScreen(root, function () { startApp(); });
+        return;
+      }
+      startApp();
+    });
   }
 
   CRM.App = { init: init, renderScopeChip: renderScopeChip };

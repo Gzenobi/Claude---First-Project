@@ -16,9 +16,12 @@ No requiere conexión a internet ni instalación de ningún tipo: todas las libr
 
 ```
 index.html          Punto de entrada, carga CSS + scripts (todos locales)
-vendor/              Chart.js, SheetJS, SortableJS y Lucide empaquetados localmente (ver vendor/README.md)
+vendor/              Chart.js, SheetJS, SortableJS, Lucide y Firebase SDK empaquetados localmente (ver vendor/README.md)
 css/styles.css       Sistema de diseño completo (paleta AkzoNobel, componentes, responsive)
-js/storage.js        Capa de persistencia: IndexedDB (datasets) + LocalStorage (config/backup)
+js/firebase-config.js Configuración de Firebase (opcional — placeholder por defecto, ver "Sincronización en la nube")
+js/cloud.js          Gate + bootstrap de Firebase: detecta si hay configuración real
+js/storage.js        Capa de persistencia local: IndexedDB (datasets) + LocalStorage (config/backup)
+js/storage-cloud.js  Reemplaza CRM.Storage por Firestore SOLO si hay configuración real de Firebase
 js/ui.js             Componentes reutilizables: toasts, modales, tablas, paginación, formularios
 js/mockData.js       Constantes de dominio + generador de datos de ejemplo industriales
 js/router.js         Router SPA basado en hash (#/dashboard, #/clientes, ...)
@@ -27,15 +30,18 @@ js/dashboard.js      Vista de dashboard ejecutivo (KPIs + 4 gráficos)
 js/clients.js        Módulo CRUD de clientes (búsqueda, filtros, orden, paginación)
 js/projects.js       Módulo de proyectos: vista tabla + kanban, CRUD
 js/kanban.js         Tablero kanban reutilizable con drag & drop (SortableJS)
-js/activities.js     Módulo de actividades comerciales: timeline + CRUD
+js/activities.js     Módulo de actividades comerciales: timeline + vista calendario + CRUD
 js/materials.js      Catálogo de materiales: CRUD + carga de planilla (XLSX/CSV/JSON)
 js/export.js         Exportación XLSX / CSV / JSON (SheetJS), incluye "exportar solo mi trabajo"
 js/import.js         Importación (uno o varios archivos) con merge automático y detección de duplicados
 js/team.js           Vista "Equipo" (solo Administrador): consolidación + estadísticas por representante
 js/users.js          Perfil local (nombre + rol), alcance de datos multi-usuario
+js/users-cloud.js    Reemplaza CRM.Users por login real de Firebase Auth SOLO si hay configuración real
 js/app.js            Bootstrap: login gate, shell (sidebar/topbar), carga de ejemplo/reset, wiring de rutas
 assets/              Logo AkzoNobel (SVG)
 data/                Reservado para datasets adicionales
+firestore.rules      Reglas de seguridad de Firestore (aislamiento por representante) — ver "Sincronización en la nube"
+firebase.json / firestore.indexes.json  Configuración del proyecto Firebase / emulador local (opcional, solo si usas el CLI)
 ```
 
 No se usan módulos ES6 (`import`/`export`) para evitar el bloqueo CORS que los navegadores aplican a `type="module"` cuando se abre un archivo con `file://`. En su lugar, cada script se registra en un único namespace global `window.CRM`.
@@ -65,6 +71,32 @@ Para cambiar de usuario en el mismo computador, usa el botón de salir junto al 
 Un **Representante Comercial / Sales Representative** solo ve sus propios clientes, proyectos y actividades — nunca los de otro representante, ni siquiera si varias personas usan el mismo computador (con "Cambiar de usuario"). El **Administrador** es el único rol que ve todo el equipo consolidado, o puede filtrar por una persona específica desde Equipo. El catálogo de **Materiales** es la excepción: es compartido y visible para todos los roles, porque es información de producto, no comercial.
 
 En la práctica esto casi nunca hace falta pensarlo: si cada representante usa su propio computador (el flujo recomendado), ya están físicamente separados — cada uno tiene su propia base de datos local. El filtro por usuario importa sobre todo si varias personas comparten un mismo computador.
+
+## Sincronización en la nube (opcional)
+
+Por defecto el CRM es **100% local**: cada computador tiene su propia base de datos y el equipo se coordina exportando/importando archivos (ver sección anterior). Si además quieres que el **mismo usuario** vea sus datos actualizados tanto en su computador como en su celular (o que el equipo se consolide automáticamente, sin enviar archivos por email), puedes activar la sincronización en la nube con **Firebase** — es opcional y no rompe nada de lo anterior: mientras no la configures, la app funciona exactamente igual que hoy.
+
+### Qué cambia al activarla
+
+- **Login real**: en vez de un perfil local (solo nombre), cada persona crea una cuenta con **email y contraseña** propia.
+- **Datos en la nube**: clientes, proyectos y actividades se guardan en Firestore (la base de datos de Firebase) en vez de en el navegador — así el celular y la computadora del mismo usuario ven lo mismo, en tiempo real.
+- **Aislamiento reforzado por el servidor**: un Representante Comercial solo puede leer/escribir sus propios registros (y ve los datos de ejemplo compartidos); un Administrador ve todo. Esto no depende de la app — está garantizado por las reglas de seguridad de Firestore (`firestore.rules`), así que ni abriendo las herramientas de desarrollador del navegador se puede saltar.
+- El catálogo de **Materiales** sigue siendo compartido y editable por cualquier usuario autenticado, igual que en modo local.
+- Exportar/importar XLSX/JSON y el backup local siguen disponibles para respaldos manuales.
+
+### Cómo activarla (una sola vez, para todo el equipo)
+
+1. Crea un proyecto gratis en [Firebase Console](https://console.firebase.google.com/) (plan Spark, sin costo para uso típico de un equipo comercial).
+2. En el proyecto, activa **Authentication → Sign-in method → Email/contraseña**.
+3. Activa **Firestore Database** (modo producción).
+4. En **Reglas** de Firestore, pega el contenido de `firestore.rules` (incluido en este repositorio) y publica.
+5. En **Configuración del proyecto → Tus apps → Web**, crea una app web y copia el objeto de configuración (`apiKey`, `authDomain`, `projectId`, etc.).
+6. Pega esos valores en `js/firebase-config.js`, reemplazando los `TU_...` de ejemplo.
+7. Vuelve a compartir el proyecto (ZIP o repositorio) con el equipo — cada quien crea su cuenta con email y contraseña la primera vez que abre `index.html`, eligiendo su rol.
+
+Si `js/firebase-config.js` mantiene los valores de ejemplo (o no se completa), la app detecta que no hay configuración real y sigue funcionando 100% local, sin errores ni intentos de conexión a internet.
+
+`firebase.json` y `firestore.indexes.json` se incluyen para quienes quieran administrar el proyecto con el CLI de Firebase (`firebase deploy --only firestore:rules`) o probar cambios localmente con el [Emulador de Firebase](https://firebase.google.com/docs/emulator-suite) — no son necesarios para el uso normal del equipo.
 
 ## Paleta de marca
 

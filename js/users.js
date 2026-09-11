@@ -42,9 +42,18 @@
   }
 
   function stampOwner(record) {
-    var u = getCurrentUser();
+    var u = CRM.Users.getCurrentUser();
     record.origenUsuario = (u && u.name) || 'Sin asignar';
     return record;
+  }
+
+  /**
+   * Gate de sesión, asíncrono por compatibilidad con el login en la nube
+   * (Firebase Auth resuelve la sesión de forma asíncrona). En modo local
+   * responde de inmediato con el perfil guardado (o null).
+   */
+  function ensureSession(callback) {
+    callback(CRM.Users.getCurrentUser());
   }
 
   /**
@@ -56,12 +65,12 @@
    *   ve los registros de otros representantes.
    */
   function applyScope(records) {
-    if (isAdmin()) {
-      var filter = getActiveFilter();
+    if (CRM.Users.isAdmin()) {
+      var filter = CRM.Users.getActiveFilter();
       if (!filter) return records;
       return records.filter(function (r) { return r.origenUsuario === filter; });
     }
-    var user = getCurrentUser();
+    var user = CRM.Users.getCurrentUser();
     var myName = user && user.name;
     return records.filter(function (r) {
       return r.origenUsuario === myName || r.origenUsuario === SEED_LABEL;
@@ -122,7 +131,7 @@
       set[name] = true; out.push(name);
     }
     (baseList || []).forEach(add);
-    var current = getCurrentUser();
+    var current = CRM.Users.getCurrentUser();
     if (current) add(current.name);
     (extraNames || []).forEach(add);
     return out;
@@ -177,6 +186,7 @@
     getCurrentUser: getCurrentUser,
     setCurrentUser: setCurrentUser,
     clearCurrentUser: clearCurrentUser,
+    ensureSession: ensureSession,
     isAdmin: isAdmin,
     getActiveFilter: getActiveFilter,
     setActiveFilter: setActiveFilter,

@@ -18,6 +18,12 @@
   <script src="vendor/Sortable.min.js"></script>
   <!-- Lucide icons 0.462.0 (ISC) -->
   <script src="vendor/lucide.min.js"></script>
+  <!-- Firebase JS SDK 12.19.0 (compat/UMD), Apache-2.0 — sincronización en la nube OPCIONAL.
+       El CRM funciona 100% local sin configurar nada; estos scripts solo se activan
+       si js/firebase-config.js contiene credenciales reales (ver README). -->
+  <script src="vendor/firebase-app-compat.js"></script>
+  <script src="vendor/firebase-auth-compat.js"></script>
+  <script src="vendor/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <div id="app-root">
@@ -28,9 +34,13 @@
   </div>
 
   <!-- App modules (orden de dependencia: storage/ui/mockData primero, app.js al final) -->
+  <script src="js/firebase-config.js"></script>
+  <script src="js/cloud.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/storage-cloud.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/users.js"></script>
+  <script src="js/users-cloud.js"></script>
   <script src="js/mockData.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/kanban.js"></script>
