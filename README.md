@@ -38,10 +38,12 @@ js/team.js           Vista "Equipo" (solo Administrador): consolidación + estad
 js/users.js          Perfil local (nombre + rol), alcance de datos multi-usuario
 js/users-cloud.js    Reemplaza CRM.Users por login real de Firebase Auth SOLO si hay configuración real
 js/app.js            Bootstrap: login gate, shell (sidebar/topbar), carga de ejemplo/reset, wiring de rutas
-assets/              Logo AkzoNobel (SVG)
+assets/              Logo AkzoNobel (SVG) + íconos de la PWA (assets/icons/)
 data/                Reservado para datasets adicionales
+manifest.json        Manifiesto de la PWA (nombre, íconos, colores) — ver "Instalar en el celular"
+sw.js                Service worker: cachea la app para que funcione instalada/sin conexión
 firestore.rules      Reglas de seguridad de Firestore (aislamiento por representante) — ver "Sincronización en la nube"
-firebase.json / firestore.indexes.json  Configuración del proyecto Firebase / emulador local (opcional, solo si usas el CLI)
+firebase.json / firestore.indexes.json  Configuración de Firebase (Hosting, Firestore, emulador local)
 ```
 
 No se usan módulos ES6 (`import`/`export`) para evitar el bloqueo CORS que los navegadores aplican a `type="module"` cuando se abre un archivo con `file://`. En su lugar, cada script se registra en un único namespace global `window.CRM`.
@@ -97,6 +99,23 @@ Por defecto el CRM es **100% local**: cada computador tiene su propia base de da
 Si `js/firebase-config.js` mantiene los valores de ejemplo (o no se completa), la app detecta que no hay configuración real y sigue funcionando 100% local, sin errores ni intentos de conexión a internet.
 
 `firebase.json` y `firestore.indexes.json` se incluyen para quienes quieran administrar el proyecto con el CLI de Firebase (`firebase deploy --only firestore:rules`) o probar cambios localmente con el [Emulador de Firebase](https://firebase.google.com/docs/emulator-suite) — no son necesarios para el uso normal del equipo.
+
+## Instalar en el celular (PWA)
+
+El CRM se puede "instalar" en el celular como una app, con su propio ícono en la pantalla de inicio y sin la barra del navegador — es una **Progressive Web App (PWA)**, no un `.apk`: no hay que pasar por ninguna tienda de aplicaciones ni instalar nada por fuera del navegador.
+
+**Requisito:** a diferencia de abrir `index.html` con doble click en la computadora, instalar en el celular requiere que la app esté publicada en algún servidor con **HTTPS** (el botón "Instalar"/"Agregar a pantalla de inicio" no aparece abriendo un archivo local desde el celular). Como ya tenés un proyecto Firebase para la sincronización en la nube (sección anterior), lo más simple es usar **Firebase Hosting**, que es gratis:
+
+1. Instala el CLI de Firebase una sola vez: `npm install -g firebase-tools`.
+2. Desde la carpeta del proyecto: `firebase login` (una vez) y `firebase use --add` para elegir tu proyecto.
+3. Publica: `firebase deploy --only hosting`. Te va a dar una URL tipo `https://tu-proyecto.web.app`.
+4. Compartí esa URL con el equipo. (Si no vas a usar sincronización en la nube, también sirve: la app funciona en modo 100% local incluso publicada así, cada celular/computadora guarda lo suyo — ver "Sincronización en la nube" para la diferencia.)
+
+**Para instalarla en el celular**, con esa URL abierta:
+- **Android (Chrome)**: aparece un banner "Agregar AkzoNobel CRM a la pantalla de inicio", o desde el menú ⋮ → "Instalar app".
+- **iPhone (Safari)**: botón compartir (□↑) → "Agregar a pantalla de inicio".
+
+Una vez instalada, abre en pantalla completa como una app nativa, y sigue funcionando **sin conexión** después de la primera carga (los archivos de la app quedan cacheados en el celular vía un service worker) — lo que no funciona sin conexión es, lógicamente, la sincronización en la nube en sí (necesita internet para guardar/traer datos de Firestore).
 
 ## Paleta de marca
 
