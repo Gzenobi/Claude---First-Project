@@ -270,7 +270,7 @@
   }
 
   /* ---------------- Import summary (shared by Configuración y Equipo) ---------------- */
-  var STORE_LABELS = { clients: 'Clientes', projects: 'Proyectos', activities: 'Actividades' };
+  var STORE_LABELS = { clients: 'Clientes', projects: 'Proyectos', activities: 'Actividades', materials: 'Materiales' };
   function renderImportSummaryHTML(result) {
     var html = '<div class="panel" style="border-color:var(--akzo-sky)"><div class="panel-body">';
     html += '<div class="flex gap-12 mb-16" style="flex-wrap:wrap">';

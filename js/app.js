@@ -13,7 +13,8 @@
     { route: 'clientes', label: 'Clientes', subtitle: 'Cuentas industriales', icon: 'building-2' },
     { route: 'proyectos', label: 'Proyectos', subtitle: 'Pipeline comercial', icon: 'briefcase' },
     { route: 'actividades', label: 'Actividades', subtitle: 'Tracking comercial', icon: 'calendar-clock' },
-    { route: 'equipo', label: 'Equipo', subtitle: 'Consolidado de todos los vendedores', icon: 'users', adminOnly: true },
+    { route: 'materiales', label: 'Materiales', subtitle: 'Catálogo de productos', icon: 'package' },
+    { route: 'equipo', label: 'Equipo', subtitle: 'Consolidado de todos los representantes', icon: 'users', adminOnly: true },
     { route: 'configuracion', label: 'Datos y backup', subtitle: 'Exportar, importar y respaldar', icon: 'database' }
   ];
 
@@ -24,7 +25,7 @@
   function buildShell() {
     var root = document.getElementById('app-root');
     var collapsed = CRM.Storage.getConfig('sidebarCollapsed', false);
-    var user = CRM.Users.getCurrentUser() || { name: 'Invitado', role: 'Vendedor' };
+    var user = CRM.Users.getCurrentUser() || { name: 'Invitado', role: 'Representante Comercial' };
     var isAdmin = CRM.Users.isAdmin();
 
     root.innerHTML =
@@ -33,7 +34,7 @@
         '<aside class="sidebar">' +
           '<div class="sidebar-brand">' +
             '<img src="assets/akzonobel-white.svg" alt="AkzoNobel">' +
-            '<div class="brand-text">Industrial Coatings<small>CRM comercial</small></div>' +
+            '<div class="brand-text">Marine &amp; Protective Coatings<small>CRM comercial</small></div>' +
           '</div>' +
           '<nav class="sidebar-nav" id="sidebar-nav"></nav>' +
           '<div class="sidebar-footer">AkzoNobel CRM v1.0<br>100% local · sin servidor</div>' +
@@ -154,7 +155,7 @@
         '</div></div>' +
         '<div class="panel"><div class="panel-header"><h3>' + UI.icon('upload') + ' Importar / restaurar</h3></div><div class="panel-body">' +
           '<p class="text-muted mb-16">Importa uno o varios archivos XLSX/JSON exportados previamente. Los registros se combinan por ID; si no existe, se detectan duplicados por nombre/email y se actualizan — nunca se duplican.' +
-          (isAdmin ? ' Para consolidar el trabajo de todo el equipo con estadísticas por vendedor, usa la sección <a href="#/equipo">Equipo</a>.' : '') + '</p>' +
+          (isAdmin ? ' Para consolidar el trabajo de todo el equipo con estadísticas por representante, usa la sección <a href="#/equipo">Equipo</a>.' : '') + '</p>' +
           '<input type="file" id="import-file" accept=".xlsx,.json,.csv" class="hidden" multiple>' +
           '<button class="btn btn-primary" id="btn-import-trigger">' + UI.icon('upload') + 'Seleccionar archivo(s)</button>' +
           '<div id="import-summary" class="mt-16"></div>' +
@@ -222,14 +223,11 @@
     return CRM.Storage.count('clients').then(function (n) {
       if (n > 0) return false;
       var data = CRM.MockData.generateAll();
-      [data.clients, data.projects, data.activities].forEach(function (list) {
+      return Promise.all(CRM.Storage.STORES.map(function (storeName) {
+        var list = data[storeName] || [];
         list.forEach(function (r) { r.origenUsuario = CRM.Users.SEED_LABEL; });
-      });
-      return Promise.all([
-        CRM.Storage.bulkPut('clients', data.clients),
-        CRM.Storage.bulkPut('projects', data.projects),
-        CRM.Storage.bulkPut('activities', data.activities)
-      ]).then(function () { return true; });
+        return CRM.Storage.bulkPut(storeName, list);
+      })).then(function () { return true; });
     });
   }
 
@@ -240,6 +238,7 @@
     CRM.Router.register('clientes', CRM.Clients.render);
     CRM.Router.register('proyectos', CRM.Projects.render);
     CRM.Router.register('actividades', CRM.Activities.render);
+    CRM.Router.register('materiales', CRM.Materials.render);
     CRM.Router.register('equipo', CRM.Team.render);
     CRM.Router.register('configuracion', renderSettingsView);
 

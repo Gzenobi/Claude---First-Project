@@ -10,7 +10,7 @@
   var CRM = global.CRM = global.CRM || {};
   var UI;
 
-  var ROLES = ['Vendedor', 'Administrador'];
+  var ROLES = ['Representante Comercial', 'Sales Representative', 'Administrador'];
   var CONFIG_KEY = 'currentUser';
   var FILTER_KEY = 'teamActiveFilter';
   var SEED_LABEL = 'Datos de ejemplo';
@@ -125,7 +125,7 @@
       '<div class="login-screen">' +
         '<div class="login-card">' +
           '<img src="assets/akzonobel-white.svg" alt="AkzoNobel" class="login-logo">' +
-          '<h1>Industrial Coatings CRM</h1>' +
+          '<h1>Marine &amp; Protective Coatings CRM</h1>' +
           '<p>Identifícate para continuar. Esto es un perfil local de esta copia del CRM, no una contraseña.</p>' +
           '<form id="login-form" novalidate>' +
             '<div class="form-field" data-field="name">' +
@@ -135,9 +135,9 @@
             '</div>' +
             '<div class="form-field" data-field="role">' +
               '<label>Tu rol <span class="req">*</span></label>' +
-              '<select name="role">' + UI.renderSelectOptions(ROLES, 'Vendedor') + '</select>' +
+              '<select name="role">' + UI.renderSelectOptions(ROLES, 'Representante Comercial') + '</select>' +
             '</div>' +
-            '<p class="login-hint">' + UI.icon('info') + 'Administrador: podrás consolidar e importar los archivos que te envíen los vendedores y ver todo el equipo.</p>' +
+            '<p class="login-hint">' + UI.icon('info') + 'Administrador: podrás consolidar e importar los archivos que te envíen los representantes y ver todo el equipo.</p>' +
             '<button type="submit" class="btn btn-primary login-submit">' + UI.icon('log-in') + 'Entrar al CRM</button>' +
           '</form>' +
         '</div>' +

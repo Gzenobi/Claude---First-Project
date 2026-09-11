@@ -28,27 +28,27 @@
 
     container.innerHTML =
       '<div class="view-header">' +
-        '<div><h1>Equipo</h1><p>Consolidado de clientes, proyectos y actividades de todos los vendedores</p></div>' +
+        '<div><h1>Equipo</h1><p>Consolidado de clientes, proyectos y actividades de todos los representantes comerciales</p></div>' +
       '</div>' +
       '<div class="kpi-grid">' +
-        '<div class="kpi-card" style="--kpi-accent:var(--akzo-navy)"><div class="kpi-icon">' + UI.icon('users') + '</div><div class="kpi-value">' + realContributors.length + '</div><div class="kpi-label">Vendedores con datos cargados</div></div>' +
+        '<div class="kpi-card" style="--kpi-accent:var(--akzo-navy)"><div class="kpi-icon">' + UI.icon('users') + '</div><div class="kpi-value">' + realContributors.length + '</div><div class="kpi-label">Representantes con datos cargados</div></div>' +
         '<div class="kpi-card" style="--kpi-accent:var(--akzo-sky)"><div class="kpi-icon">' + UI.icon('building-2') + '</div><div class="kpi-value">' + clients.length + '</div><div class="kpi-label">Clientes totales</div></div>' +
         '<div class="kpi-card" style="--kpi-accent:var(--akzo-purple)"><div class="kpi-icon">' + UI.icon('trending-up') + '</div><div class="kpi-value">' + UI.formatCurrency(totalPipeline) + '</div><div class="kpi-label">Pipeline abierto consolidado</div></div>' +
         '<div class="kpi-card" style="--kpi-accent:var(--akzo-violet)"><div class="kpi-icon">' + UI.icon('clock') + '</div><div class="kpi-value">' + activities.filter(function (a) { return a.estado === 'Pendiente'; }).length + '</div><div class="kpi-label">Actividades pendientes (todos)</div></div>' +
       '</div>' +
       '<div class="panel mb-16"><div class="panel-header"><h3>' + UI.icon('upload-cloud') + ' Consolidar archivos del equipo</h3></div><div class="panel-body">' +
-        '<p class="text-muted mb-16">Selecciona a la vez los archivos XLSX o JSON que te enviaron los vendedores por email. Cada archivo queda identificado por quién lo generó, y los registros se combinan sin duplicar.</p>' +
+        '<p class="text-muted mb-16">Selecciona a la vez los archivos XLSX o JSON que te enviaron los representantes por email. Cada archivo queda identificado por quién lo generó, y los registros se combinan sin duplicar.</p>' +
         '<input type="file" id="team-import-file" accept=".xlsx,.json,.csv" class="hidden" multiple>' +
-        '<button class="btn btn-primary" id="btn-team-import-trigger">' + UI.icon('upload') + 'Seleccionar archivos de vendedores</button>' +
+        '<button class="btn btn-primary" id="btn-team-import-trigger">' + UI.icon('upload') + 'Seleccionar archivos de representantes</button>' +
         '<div id="team-import-summary" class="mt-16">' + lastImportSummaryHTML + '</div>' +
       '</div></div>' +
       '<div class="panel">' +
-        '<div class="panel-header"><h3>Vendedores</h3>' + (activeFilter ? '<button class="btn btn-sm btn-outline" id="btn-view-all">' + UI.icon('x') + 'Quitar filtro (' + UI.escapeHtml(activeFilter) + ')</button>' : '') + '</div>' +
+        '<div class="panel-header"><h3>Representantes</h3>' + (activeFilter ? '<button class="btn btn-sm btn-outline" id="btn-view-all">' + UI.icon('x') + 'Quitar filtro (' + UI.escapeHtml(activeFilter) + ')</button>' : '') + '</div>' +
         '<div class="table-scroll"><table class="data-table"><thead><tr>' +
-          '<th>Vendedor</th><th>Clientes</th><th>Proyectos</th><th style="text-align:right">Pipeline abierto</th><th style="text-align:right">Ganados</th><th style="text-align:right">Act. pendientes</th><th>Última actividad</th><th style="text-align:right">Ver</th>' +
+          '<th>Representante</th><th>Clientes</th><th>Proyectos</th><th style="text-align:right">Pipeline abierto</th><th style="text-align:right">Ganados</th><th style="text-align:right">Act. pendientes</th><th>Última actividad</th><th style="text-align:right">Ver</th>' +
         '</tr></thead><tbody>' +
         (contributors.length === 0
-          ? '<tr><td colspan="8">' + UI.emptyStateHTML({ icon: 'users', title: 'Sin vendedores todavía', message: 'Importa el primer archivo enviado por un vendedor para verlo aquí.' }) + '</td></tr>'
+          ? '<tr><td colspan="8">' + UI.emptyStateHTML({ icon: 'users', title: 'Sin representantes todavía', message: 'Importa el primer archivo enviado por un representante para verlo aquí.' }) + '</td></tr>'
           : contributors.map(function (c) {
               var isActive = activeFilter === c.name;
               return '<tr' + (isActive ? ' style="background:var(--surface-hover)"' : '') + '>' +

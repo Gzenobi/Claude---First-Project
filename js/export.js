@@ -9,8 +9,9 @@
 
   var EXPORT_COLUMNS = {
     clients: ['id', 'nombre', 'segmento', 'planta', 'ciudad', 'pais', 'contacto', 'email', 'telefono', 'competidor', 'potencialAnual', 'observaciones', 'origenUsuario', 'createdAt', 'updatedAt'],
-    projects: ['id', 'clienteId', 'nombreProyecto', 'segmento', 'coatingSystem', 'estado', 'valor', 'probabilidad', 'fechaCierre', 'responsable', 'competidor', 'notasTecnicas', 'origenUsuario', 'createdAt', 'updatedAt'],
-    activities: ['id', 'tipo', 'clienteId', 'proyectoId', 'titulo', 'descripcion', 'fecha', 'responsable', 'estado', 'origenUsuario', 'createdAt', 'updatedAt']
+    projects: ['id', 'clienteId', 'nombreProyecto', 'segmento', 'coatingSystem', 'estado', 'valor', 'volumenLitros', 'probabilidad', 'fechaCierre', 'responsable', 'competidor', 'notasTecnicas', 'origenUsuario', 'createdAt', 'updatedAt'],
+    activities: ['id', 'tipo', 'clienteId', 'proyectoId', 'titulo', 'descripcion', 'fecha', 'responsable', 'estado', 'origenUsuario', 'createdAt', 'updatedAt'],
+    materials: ['id', 'codigo', 'nombre', 'categoria', 'unidad', 'precioUnitario', 'stock', 'proveedor', 'notas', 'origenUsuario', 'createdAt', 'updatedAt']
   };
 
   function downloadBlob(blob, filename) {
@@ -52,7 +53,7 @@
     opts = opts || {};
     return Promise.all(CRM.Storage.STORES.map(CRM.Storage.getAll)).then(function (results) {
       var wb = XLSX.utils.book_new();
-      var sheetNames = { clients: 'Clientes', projects: 'Proyectos', activities: 'Actividades' };
+      var sheetNames = { clients: 'Clientes', projects: 'Proyectos', activities: 'Actividades', materials: 'Materiales' };
       CRM.Storage.STORES.forEach(function (storeName, idx) {
         var records = opts.onlyMine ? filterMine(storeName, results[idx]) : results[idx];
         var ws = XLSX.utils.json_to_sheet(toRows(storeName, records));

@@ -26,7 +26,7 @@
       { key: 'competidor', label: 'Competidor', sortable: true, render: function (r) { return UI.escapeHtml(r.competidor || '—'); } }
     ];
     if (CRM.Users.isAdmin()) {
-      cols.push({ key: 'origenUsuario', label: 'Vendedor', sortable: true, render: function (r) { return UI.badge(r.origenUsuario || 'Sin asignar', r.origenUsuario === CRM.Users.SEED_LABEL ? 'badge-gray' : 'badge-navy'); } });
+      cols.push({ key: 'origenUsuario', label: 'Cargado por', sortable: true, render: function (r) { return UI.badge(r.origenUsuario || 'Sin asignar', r.origenUsuario === CRM.Users.SEED_LABEL ? 'badge-gray' : 'badge-navy'); } });
     }
     return cols;
   }

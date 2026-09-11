@@ -8,8 +8,8 @@
   var CRM = global.CRM = global.CRM || {};
 
   var DB_NAME = 'akzonobel_crm_db';
-  var DB_VERSION = 1;
-  var STORES = ['clients', 'projects', 'activities'];
+  var DB_VERSION = 2;
+  var STORES = ['clients', 'projects', 'activities', 'materials'];
   var LS_CONFIG_KEY = 'akzo_crm_config';
   var LS_BACKUP_KEY = 'akzo_crm_backup';
   var LS_SCHEMA_KEY = 'akzo_crm_schema_version';
@@ -164,14 +164,12 @@
 
   function backupToLocalStorage() {
     return Promise.all(STORES.map(getAll)).then(function (results) {
+      var data = {};
+      STORES.forEach(function (name, i) { data[name] = results[i]; });
       var snapshot = {
         version: SCHEMA_VERSION,
         savedAt: new Date().toISOString(),
-        data: {
-          clients: results[0],
-          projects: results[1],
-          activities: results[2]
-        }
+        data: data
       };
       try {
         global.localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(snapshot));
@@ -195,11 +193,9 @@
       var raw = global.localStorage.getItem(LS_BACKUP_KEY);
       if (!raw) return Promise.reject(new Error('No hay backup disponible'));
       var parsed = JSON.parse(raw);
-      return Promise.all([
-        clearStore('clients').then(function () { return bulkPut('clients', parsed.data.clients || []); }),
-        clearStore('projects').then(function () { return bulkPut('projects', parsed.data.projects || []); }),
-        clearStore('activities').then(function () { return bulkPut('activities', parsed.data.activities || []); })
-      ]);
+      return Promise.all(STORES.map(function (name) {
+        return clearStore(name).then(function () { return bulkPut(name, (parsed.data && parsed.data[name]) || []); });
+      }));
     } catch (e) {
       return Promise.reject(e);
     }
@@ -207,13 +203,9 @@
 
   function exportFullSnapshot() {
     return Promise.all(STORES.map(getAll)).then(function (results) {
-      return {
-        version: SCHEMA_VERSION,
-        exportedAt: new Date().toISOString(),
-        clients: results[0],
-        projects: results[1],
-        activities: results[2]
-      };
+      var snapshot = { version: SCHEMA_VERSION, exportedAt: new Date().toISOString() };
+      STORES.forEach(function (name, i) { snapshot[name] = results[i]; });
+      return snapshot;
     });
   }
 

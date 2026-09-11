@@ -35,6 +35,28 @@
 
   var COMPETITORS = ['Sherwin-Williams', 'Jotun', 'PPG Protective & Marine', 'Hempel', 'Sika', 'Ninguno identificado'];
 
+  var MATERIAL_CATEGORIES = ['Imprimante (Primer)', 'Intermedio', 'Acabado (Topcoat)', 'Diluyente / Thinner', 'Protección pasiva contra fuego', 'Accesorios', 'Otro'];
+  var MATERIAL_UNITS = ['Litro', 'Galón (3.785 L)', 'Kg', 'Balde 20 L', 'Tambor 200 L', 'Unidad'];
+  var MATERIAL_CATALOG = [
+    { codigo: 'IZ-22', nombre: 'Interzinc 22', categoria: 'Imprimante (Primer)', unidad: 'Balde 20 L', precioUnitario: 8.9 },
+    { codigo: 'IZ-315', nombre: 'Interzinc 315', categoria: 'Imprimante (Primer)', unidad: 'Balde 20 L', precioUnitario: 9.4 },
+    { codigo: 'IG-269', nombre: 'Intergard 269', categoria: 'Intermedio', unidad: 'Balde 20 L', precioUnitario: 7.1 },
+    { codigo: 'IG-251HS', nombre: 'Intergard 251HS', categoria: 'Intermedio', unidad: 'Balde 20 L', precioUnitario: 7.6 },
+    { codigo: 'IS-670HS', nombre: 'Interseal 670HS', categoria: 'Intermedio', unidad: 'Balde 20 L', precioUnitario: 8.2 },
+    { codigo: 'IS-6100HS', nombre: 'Interseal 6100HS', categoria: 'Intermedio', unidad: 'Balde 20 L', precioUnitario: 9.8 },
+    { codigo: 'IT-990', nombre: 'Interthane 990', categoria: 'Acabado (Topcoat)', unidad: 'Balde 20 L', precioUnitario: 11.3 },
+    { codigo: 'IF-629HS', nombre: 'Interfine 629HS', categoria: 'Acabado (Topcoat)', unidad: 'Balde 20 L', precioUnitario: 12.1 },
+    { codigo: 'IF-878', nombre: 'Interfine 878', categoria: 'Acabado (Topcoat)', unidad: 'Balde 20 L', precioUnitario: 12.8 },
+    { codigo: 'ITH-228HS', nombre: 'Intertherm 228HS', categoria: 'Acabado (Topcoat)', unidad: 'Balde 20 L', precioUnitario: 14.5 },
+    { codigo: 'IL-850', nombre: 'Interline 850', categoria: 'Acabado (Topcoat)', unidad: 'Tambor 200 L', precioUnitario: 10.6 },
+    { codigo: 'CH-2218', nombre: 'Chartek 2218', categoria: 'Protección pasiva contra fuego', unidad: 'Balde 20 L', precioUnitario: 22.4 },
+    { codigo: 'THIN-01', nombre: 'Diluyente GTA220', categoria: 'Diluyente / Thinner', unidad: 'Balde 20 L', precioUnitario: 4.2 },
+    { codigo: 'THIN-08', nombre: 'Diluyente GTA015', categoria: 'Diluyente / Thinner', unidad: 'Balde 20 L', precioUnitario: 4.6 },
+    { codigo: 'ACC-ROD', nombre: 'Rodillo antipelusa 9"', categoria: 'Accesorios', unidad: 'Unidad', precioUnitario: 3.5 },
+    { codigo: 'ACC-BROC', nombre: 'Brocha profesional 4"', categoria: 'Accesorios', unidad: 'Unidad', precioUnitario: 5.1 }
+  ];
+  var SUPPLIERS = ['AkzoNobel Cono Sur', 'Distribuidor autorizado Norte', 'Distribuidor autorizado Centro', 'Importación directa'];
+
   var CITIES = [
     { ciudad: 'Antofagasta', pais: 'Chile' },
     { ciudad: 'Calama', pais: 'Chile' },
@@ -122,6 +144,7 @@
         var stage = rand(PROJECT_STAGES);
         var now = new Date().toISOString();
         var isClosed = stage.key === 'Ganado' || stage.key === 'Perdido';
+        var valor = randInt(15000, 480000);
         projects.push({
           id: uid('prj'),
           clienteId: client.id,
@@ -129,7 +152,8 @@
           segmento: client.segmento,
           coatingSystem: rand(COATING_SYSTEMS),
           estado: stage.key,
-          valor: randInt(15000, 480000),
+          valor: valor,
+          volumenLitros: Math.round(valor / randInt(35, 65)),
           probabilidad: stage.probability,
           fechaCierre: randDateWithinDays(isClosed ? 60 : 10, isClosed ? -1 : 120).toISOString(),
           responsable: rand(SALES_REPS),
@@ -180,11 +204,26 @@
     return activities.sort(function (a, b) { return new Date(b.fecha) - new Date(a.fecha); });
   }
 
+  function generateMaterials() {
+    var now = new Date().toISOString();
+    return MATERIAL_CATALOG.map(function (item) {
+      return Object.assign({}, item, {
+        id: uid('mat'),
+        stock: randInt(0, 400),
+        proveedor: rand(SUPPLIERS),
+        notas: '',
+        createdAt: now,
+        updatedAt: now
+      });
+    });
+  }
+
   function generateAll() {
     var clients = generateClients();
     var projects = generateProjects(clients);
     var activities = generateActivities(clients, projects);
-    return { clients: clients, projects: projects, activities: activities };
+    var materials = generateMaterials();
+    return { clients: clients, projects: projects, activities: activities, materials: materials };
   }
 
   CRM.Constants = {
@@ -195,7 +234,9 @@
     COATING_SYSTEMS: COATING_SYSTEMS,
     COMPETITORS: COMPETITORS,
     SALES_REPS: SALES_REPS,
-    ACTIVITY_STATES: ['Pendiente', 'Completada', 'Vencida']
+    ACTIVITY_STATES: ['Pendiente', 'Completada', 'Vencida'],
+    MATERIAL_CATEGORIES: MATERIAL_CATEGORIES,
+    MATERIAL_UNITS: MATERIAL_UNITS
   };
 
   CRM.MockData = { generateAll: generateAll };

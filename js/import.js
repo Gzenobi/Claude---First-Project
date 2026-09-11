@@ -11,13 +11,15 @@
   var NATURAL_KEY = {
     clients: function (r) { return ((r.email || r.nombre || '') + '').toLowerCase().trim(); },
     projects: function (r) { return ((r.clienteId || '') + '::' + (r.nombreProyecto || '')).toLowerCase().trim(); },
-    activities: function (r) { return ((r.titulo || '') + '::' + (r.fecha || '')).toLowerCase().trim(); }
+    activities: function (r) { return ((r.titulo || '') + '::' + (r.fecha || '')).toLowerCase().trim(); },
+    materials: function (r) { return ((r.codigo || r.nombre || '') + '').toLowerCase().trim(); }
   };
 
   var NUMERIC_FIELDS = {
     clients: ['potencialAnual'],
-    projects: ['valor', 'probabilidad'],
-    activities: []
+    projects: ['valor', 'volumenLitros', 'probabilidad'],
+    activities: [],
+    materials: ['precioUnitario', 'stock']
   };
 
   function labelFromFilename(filename) {
@@ -107,7 +109,7 @@
     return readFileAsText(file).then(function (text) {
       var snapshot = JSON.parse(text);
       var fallbackOwner = snapshot.exportedBy || labelFromFilename(file.name);
-      var stores = ['clients', 'projects', 'activities'];
+      var stores = CRM.Storage.STORES;
       return stores.reduce(function (chain, storeName) {
         return chain.then(function (acc) {
           var rows = snapshot[storeName] || (snapshot.data ? snapshot.data[storeName] : null) || [];
@@ -120,7 +122,10 @@
     });
   }
 
-  var SHEET_TO_STORE = { 'Clientes': 'clients', 'Proyectos': 'projects', 'Actividades': 'activities', 'clients': 'clients', 'projects': 'projects', 'activities': 'activities' };
+  var SHEET_TO_STORE = {
+    'Clientes': 'clients', 'Proyectos': 'projects', 'Actividades': 'activities', 'Materiales': 'materials',
+    'clients': 'clients', 'projects': 'projects', 'activities': 'activities', 'materials': 'materials'
+  };
 
   function importXLSXFile(file) {
     return readFileAsArrayBuffer(file).then(function (buffer) {
@@ -168,7 +173,8 @@
    */
   function importFiles(fileList) {
     var files = Array.prototype.slice.call(fileList);
-    var combined = { clients: { added: 0, updated: 0, skipped: 0 }, projects: { added: 0, updated: 0, skipped: 0 }, activities: { added: 0, updated: 0, skipped: 0 } };
+    var combined = {};
+    CRM.Storage.STORES.forEach(function (name) { combined[name] = { added: 0, updated: 0, skipped: 0 }; });
     var perFile = [];
 
     return files.reduce(function (chain, file) {
@@ -176,6 +182,7 @@
         return importOneFile(file).then(function (summary) {
           perFile.push({ filename: file.name, summary: summary, ok: true });
           Object.keys(summary).forEach(function (storeName) {
+            if (!combined[storeName]) combined[storeName] = { added: 0, updated: 0, skipped: 0 };
             combined[storeName].added += summary[storeName].added;
             combined[storeName].updated += summary[storeName].updated;
             combined[storeName].skipped += summary[storeName].skipped;
@@ -189,11 +196,41 @@
     });
   }
 
+  /**
+   * Importa un archivo hacia un único store, sin depender del nombre de la
+   * hoja/columna (usado por el catálogo de Materiales): JSON (array plano,
+   * {materials:[...]} o snapshot completo), CSV, o XLSX (toma la primera hoja).
+   */
+  function importSingleStoreFile(file, storeName) {
+    var ext = file.name.split('.').pop().toLowerCase();
+    var fallbackOwner = labelFromFilename(file.name);
+    if (ext === 'json') {
+      return readFileAsText(file).then(function (text) {
+        var parsed = JSON.parse(text);
+        var rows = Array.isArray(parsed) ? parsed : (parsed[storeName] || (parsed.data ? parsed.data[storeName] : null) || []);
+        return applyMergeToStore(storeName, rows, parsed.exportedBy || fallbackOwner);
+      });
+    }
+    if (ext === 'csv') {
+      return readFileAsText(file).then(function (text) {
+        var wb = XLSX.read(text, { type: 'string' });
+        var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+        return applyMergeToStore(storeName, rows, fallbackOwner);
+      });
+    }
+    return readFileAsArrayBuffer(file).then(function (buffer) {
+      var wb = XLSX.read(buffer, { type: 'array' });
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      return applyMergeToStore(storeName, rows, fallbackOwner);
+    });
+  }
+
   CRM.Import = {
     importJSONFile: importJSONFile,
     importXLSXFile: importXLSXFile,
     importCSVFile: importCSVFile,
     importFiles: importFiles,
+    importSingleStoreFile: importSingleStoreFile,
     mergeRecords: mergeRecords
   };
 

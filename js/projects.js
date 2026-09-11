@@ -37,6 +37,7 @@
       { key: 'segmento', label: 'Segmento', sortable: true, render: function (r) { return UI.escapeHtml(r.segmento); } },
       { key: 'estado', label: 'Etapa', sortable: true, render: function (r) { return UI.badge(r.estado, STAGE_BADGE[stageColor(r.estado)]); } },
       { key: 'valor', label: 'Valor', sortable: true, align: 'right', render: function (r) { return UI.formatCurrency(r.valor); } },
+      { key: 'volumenLitros', label: 'Litros', sortable: true, align: 'right', render: function (r) { return UI.formatNumber(r.volumenLitros || 0) + ' L'; } },
       { key: 'probabilidad', label: 'Prob.', sortable: true, align: 'right', render: function (r) { return r.probabilidad + '%'; } },
       { key: 'fechaCierre', label: 'Cierre estimado', sortable: true, render: function (r) { return UI.formatDate(r.fechaCierre); } },
       { key: 'responsable', label: 'Responsable', sortable: true, render: function (r) { return UI.escapeHtml(r.responsable); } }
@@ -89,6 +90,7 @@
         selectField('estado', 'Etapa', CRM.Constants.PROJECT_STAGE_KEYS, project.estado, true) +
         field('probabilidad', 'Probabilidad (%)', 'number', project.probabilidad != null ? project.probabilidad : '', false) +
         field('valor', 'Valor estimado (USD)', 'number', project.valor, true) +
+        field('volumenLitros', 'Volumen estimado (litros)', 'number', project.volumenLitros, false) +
         field('fechaCierre', 'Fecha de cierre estimada', 'date', project.fechaCierre ? project.fechaCierre.slice(0, 10) : '', true) +
         selectField('responsable', 'Responsable comercial', CRM.Users.getResponsableOptions(CRM.Constants.SALES_REPS), project.responsable || (CRM.Users.getCurrentUser() || {}).name, false) +
         field('competidor', 'Competidor', 'text', project.competidor, false) +
@@ -154,6 +156,7 @@
             var record = Object.assign({}, existing, data, {
               id: existing ? existing.id : UI.generateId(),
               valor: Number(data.valor) || 0,
+              volumenLitros: Number(data.volumenLitros) || 0,
               probabilidad: data.probabilidad !== '' ? Number(data.probabilidad) : (stageDefault ? stageDefault.probability : 0),
               fechaCierre: new Date(data.fechaCierre).toISOString(),
               createdAt: existing ? existing.createdAt : now,
