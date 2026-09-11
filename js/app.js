@@ -161,10 +161,17 @@
           '<div id="import-summary" class="mt-16"></div>' +
         '</div></div>' +
       '</div>' +
-      '<div class="panel"><div class="panel-header"><h3>' + UI.icon('shield-check') + ' Backup automático</h3></div><div class="panel-body">' +
+      '<div class="panel mb-16"><div class="panel-header"><h3>' + UI.icon('shield-check') + ' Backup automático</h3></div><div class="panel-body">' +
         '<p class="text-muted">Cada cambio se respalda automáticamente en el almacenamiento local del navegador.</p>' +
         '<p><strong>Último backup:</strong> ' + (backupInfo ? UI.formatDateTime(backupInfo.savedAt) + ' (versión de esquema ' + backupInfo.version + ')' : 'Aún no se ha generado un backup') + '</p>' +
         '<button class="btn btn-outline btn-sm" id="btn-restore-backup">' + UI.icon('rotate-ccw') + 'Restaurar último backup</button>' +
+      '</div></div>' +
+      '<div class="panel"><div class="panel-header"><h3>' + UI.icon('refresh-ccw-dot') + ' Reiniciar datos</h3></div><div class="panel-body">' +
+        '<p class="text-muted mb-16">La app no carga datos de ejemplo automáticamente. Usa esto solo para explorar el CRM o para empezar totalmente de cero antes de cargar información real.</p>' +
+        '<div class="flex gap-12" style="flex-wrap:wrap">' +
+          '<button class="btn btn-secondary" id="btn-load-example">' + UI.icon('sparkles') + 'Cargar datos de ejemplo</button>' +
+          '<button class="btn btn-danger" id="btn-wipe-all">' + UI.icon('trash-2') + 'Borrar todos los datos</button>' +
+        '</div>' +
       '</div></div>';
 
     UI.refreshIcons();
@@ -216,19 +223,45 @@
           }).catch(function () { UI.toast('No hay backup disponible para restaurar', 'error'); });
         });
     });
+
+    document.getElementById('btn-load-example').addEventListener('click', function () {
+      UI.confirmDialog({
+        title: 'Cargar datos de ejemplo',
+        message: 'Se agregarán ~20 clientes, proyectos, actividades y materiales de ejemplo (identificados como "Datos de ejemplo"), sin borrar lo que ya tengas cargado. ¿Continuar?',
+        confirmText: 'Cargar ejemplo'
+      }).then(function (ok) {
+        if (!ok) return;
+        loadExampleData().then(function () {
+          UI.toast('Datos de ejemplo cargados', 'success');
+          CRM.Router.navigate('dashboard');
+        });
+      });
+    });
+
+    document.getElementById('btn-wipe-all').addEventListener('click', function () {
+      UI.confirmDialog({
+        title: 'Borrar todos los datos',
+        message: 'Esto elimina permanentemente TODOS los clientes, proyectos, actividades y materiales guardados en este computador (incluido el backup local). No afecta tu perfil de usuario ni a otros computadores. Esta acción no se puede deshacer.',
+        confirmText: 'Borrar todo',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        CRM.Storage.wipeAll().then(function () {
+          UI.toast('Todos los datos fueron borrados', 'success');
+          CRM.Router.navigate('dashboard');
+        });
+      });
+    });
   }
 
-  /* ---------------- Seeding ---------------- */
-  function seedIfEmpty() {
-    return CRM.Storage.count('clients').then(function (n) {
-      if (n > 0) return false;
-      var data = CRM.MockData.generateAll();
-      return Promise.all(CRM.Storage.STORES.map(function (storeName) {
-        var list = data[storeName] || [];
-        list.forEach(function (r) { r.origenUsuario = CRM.Users.SEED_LABEL; });
-        return CRM.Storage.bulkPut(storeName, list);
-      })).then(function () { return true; });
-    });
+  /* ---------------- Datos de ejemplo (carga manual, no automática) ---------------- */
+  function loadExampleData() {
+    var data = CRM.MockData.generateAll();
+    return Promise.all(CRM.Storage.STORES.map(function (storeName) {
+      var list = data[storeName] || [];
+      list.forEach(function (r) { r.origenUsuario = CRM.Users.SEED_LABEL; });
+      return CRM.Storage.bulkPut(storeName, list);
+    }));
   }
 
   /* ---------------- Bootstrap ---------------- */
@@ -243,9 +276,7 @@
     CRM.Router.register('configuracion', renderSettingsView);
 
     CRM.Storage.init()
-      .then(seedIfEmpty)
-      .then(function (seeded) {
-        if (seeded) UI.toast('Datos de ejemplo cargados', 'info');
+      .then(function () {
         CRM.Router.init(document.getElementById('app-content'));
       })
       .catch(function (err) {

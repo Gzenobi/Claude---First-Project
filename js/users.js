@@ -48,14 +48,24 @@
   }
 
   /**
-   * Aplica el filtro de equipo activo (solo relevante para el rol
-   * Administrador). Si no hay filtro o el usuario no es admin, devuelve
-   * los registros sin modificar.
+   * Aplica el alcance de datos según el rol de la sesión actual.
+   * - Administrador: ve todo, salvo que haya elegido un filtro activo en
+   *   Equipo (entonces ve solo a ese representante).
+   * - Representante (cualquier rol no-admin): ve únicamente sus propios
+   *   registros, más los datos de ejemplo compartidos (si los hay). Nunca
+   *   ve los registros de otros representantes.
    */
   function applyScope(records) {
-    var filter = getActiveFilter();
-    if (!filter) return records;
-    return records.filter(function (r) { return r.origenUsuario === filter; });
+    if (isAdmin()) {
+      var filter = getActiveFilter();
+      if (!filter) return records;
+      return records.filter(function (r) { return r.origenUsuario === filter; });
+    }
+    var user = getCurrentUser();
+    var myName = user && user.name;
+    return records.filter(function (r) {
+      return r.origenUsuario === myName || r.origenUsuario === SEED_LABEL;
+    });
   }
 
   /**

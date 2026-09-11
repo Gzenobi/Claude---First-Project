@@ -127,7 +127,11 @@
             ? ('Mostrando solo los datos de <strong>' + UI.escapeHtml(activeFilter) + '</strong>.')
             : ('Vista de <strong>administrador</strong>: mostrando los datos consolidados de ' + contributors.length + ' representante(s).')) +
           ' <a href="#/equipo">Ver equipo</a></div>'
-        ) : '') +
+        ) : (
+          '<div class="scope-banner">' + UI.icon('lock') +
+          'Estás viendo solo tus propios datos (' + UI.escapeHtml((CRM.Users.getCurrentUser() || {}).name || '') + '). No ves los de otros representantes.' +
+          '</div>'
+        )) +
         '<div class="kpi-grid">' +
           kpiCard({ id: 'clients', icon: 'building-2', accent: 'var(--akzo-navy)', value: UI.formatNumber(clients.length), label: 'Clientes activos' }) +
           kpiCard({ id: 'projects', icon: 'briefcase', accent: 'var(--akzo-sky)', value: UI.formatNumber(projects.length), label: 'Proyectos totales' }) +

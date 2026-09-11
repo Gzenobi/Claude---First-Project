@@ -151,8 +151,10 @@
   }
 
   function render(container) {
+    // El catálogo de materiales es compartido: todos los roles lo ven completo
+    // (no se filtra por CRM.Users.applyScope, a diferencia de clientes/proyectos/actividades).
     return CRM.Storage.getAll('materials').then(function (materials) {
-      renderView(container, CRM.Users.applyScope(materials));
+      renderView(container, materials);
     });
   }
 

@@ -6,7 +6,9 @@ CRM comercial **zero-install** para el equipo de ventas técnicas de recubrimien
 
 1. Descomprime el proyecto (o clónalo).
 2. Haz doble click en `index.html`.
-3. Listo. La app carga datos de ejemplo automáticamente la primera vez.
+3. Listo. La app arranca **vacía** (sin datos de ejemplo) — lista para cargar información real desde el primer momento.
+
+¿Quieres explorar la app con datos de prueba primero? En **Datos y backup → Reiniciar datos → "Cargar datos de ejemplo"** puedes agregar un set de ~20 clientes/proyectos/actividades/materiales de ejemplo en cualquier momento, y borrarlos después con **"Borrar todos los datos"** (deja todo en blanco, sin afectar tu perfil de usuario) para arrancar con información real.
 
 Requiere conexión a internet solo para cargar las librerías desde CDN (Chart.js, SheetJS, SortableJS, Lucide Icons). No requiere instalación de ningún tipo.
 
@@ -30,7 +32,7 @@ js/export.js         Exportación XLSX / CSV / JSON (SheetJS), incluye "exportar
 js/import.js         Importación (uno o varios archivos) con merge automático y detección de duplicados
 js/team.js           Vista "Equipo" (solo Administrador): consolidación + estadísticas por representante
 js/users.js          Perfil local (nombre + rol), alcance de datos multi-usuario
-js/app.js            Bootstrap: login gate, shell (sidebar/topbar), seeding, wiring de rutas
+js/app.js            Bootstrap: login gate, shell (sidebar/topbar), carga de ejemplo/reset, wiring de rutas
 assets/              Logo AkzoNobel (SVG)
 data/                Reservado para datasets adicionales
 ```
@@ -56,6 +58,12 @@ Cada computador guarda su propia base de datos local (IndexedDB) — no hay un s
 4. En **Equipo**, el administrador ve estadísticas por representante (clientes, proyectos, pipeline, actividades) y puede alternar entre "ver todo el equipo" o "ver solo a X" desde cualquier módulo (Dashboard, Clientes, Proyectos, Actividades) mediante un filtro persistente indicado en la barra superior.
 
 Para cambiar de usuario en el mismo computador, usa el botón de salir junto al avatar en la barra superior.
+
+### Aislamiento de datos entre representantes
+
+Un **Representante Comercial / Sales Representative** solo ve sus propios clientes, proyectos y actividades — nunca los de otro representante, ni siquiera si varias personas usan el mismo computador (con "Cambiar de usuario"). El **Administrador** es el único rol que ve todo el equipo consolidado, o puede filtrar por una persona específica desde Equipo. El catálogo de **Materiales** es la excepción: es compartido y visible para todos los roles, porque es información de producto, no comercial.
+
+En la práctica esto casi nunca hace falta pensarlo: si cada representante usa su propio computador (el flujo recomendado), ya están físicamente separados — cada uno tiene su propia base de datos local. El filtro por usuario importa sobre todo si varias personas comparten un mismo computador.
 
 ## Paleta de marca
 

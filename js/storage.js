@@ -209,6 +209,12 @@
     });
   }
 
+  function wipeAll() {
+    return Promise.all(STORES.map(clearStore)).then(function () {
+      try { global.localStorage.removeItem(LS_BACKUP_KEY); } catch (e) { /* ignore */ }
+    });
+  }
+
   /* ---------------- Public API ---------------- */
 
   CRM.Storage = {
@@ -219,6 +225,7 @@
     bulkPut: bulkPut,
     remove: remove,
     clearStore: clearStore,
+    wipeAll: wipeAll,
     count: count,
     getConfig: getConfig,
     setConfig: setConfig,
