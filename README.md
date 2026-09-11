@@ -10,12 +10,13 @@ CRM comercial **zero-install** para el equipo de ventas técnicas de recubrimien
 
 ¿Quieres explorar la app con datos de prueba primero? En **Datos y backup → Reiniciar datos → "Cargar datos de ejemplo"** puedes agregar un set de ~20 clientes/proyectos/actividades/materiales de ejemplo en cualquier momento, y borrarlos después con **"Borrar todos los datos"** (deja todo en blanco, sin afectar tu perfil de usuario) para arrancar con información real.
 
-Requiere conexión a internet solo para cargar las librerías desde CDN (Chart.js, SheetJS, SortableJS, Lucide Icons). No requiere instalación de ningún tipo.
+No requiere conexión a internet ni instalación de ningún tipo: todas las librerías (Chart.js, SheetJS, SortableJS, Lucide Icons) vienen empaquetadas dentro del proyecto en `vendor/` — no depende de ningún CDN externo. Esto es importante en redes corporativas con firewalls/proxies restrictivos que suelen bloquear dominios de CDN no autorizados.
 
 ## Arquitectura
 
 ```
-index.html          Punto de entrada, carga CSS + scripts + CDN
+index.html          Punto de entrada, carga CSS + scripts (todos locales)
+vendor/              Chart.js, SheetJS, SortableJS y Lucide empaquetados localmente (ver vendor/README.md)
 css/styles.css       Sistema de diseño completo (paleta AkzoNobel, componentes, responsive)
 js/storage.js        Capa de persistencia: IndexedDB (datasets) + LocalStorage (config/backup)
 js/ui.js             Componentes reutilizables: toasts, modales, tablas, paginación, formularios
@@ -73,6 +74,13 @@ Se utiliza la paleta oficial de AkzoNobel: Navy `#005192` (color ancla), Sky `#0
 
 - **IndexedDB** (`akzonobel_crm_db`): almacena clientes, proyectos, actividades y materiales — soporta datasets grandes y consultas eficientes.
 - **LocalStorage**: configuración de UI (sidebar colapsado, filtros) y backup JSON automático versionado, restaurable desde la vista "Datos y backup".
+
+## Redes corporativas
+
+Como no depende de ningún CDN externo (ver `vendor/`), la app carga sin problema aunque el firewall corporativo bloquee dominios externos no autorizados — solo se necesita poder servir/abrir los archivos del propio proyecto. Aun así, dos cosas dependen de la política de cada empresa y conviene probar en el equipo real antes de un despliegue masivo:
+
+- **Persistencia de IndexedDB/LocalStorage**: algunas políticas de Chrome/Edge administrado borran el almacenamiento del sitio al cerrar el navegador. Probar: cargar datos, cerrar el navegador completamente, volver a abrir `index.html` y verificar que los datos sigan ahí.
+- **Descargas**: exportar/importar XLSX/JSON depende de que el navegador permita descargar y adjuntar archivos.
 
 ## Compartir / publicar
 
