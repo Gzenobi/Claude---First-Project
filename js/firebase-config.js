@@ -8,10 +8,10 @@
 // Mientras los valores sean los de ejemplo (o falten), el CRM detecta que no
 // hay configuración real y sigue funcionando en modo local sin errores.
 window.CRM_FIREBASE_CONFIG = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROYECTO",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyDl9WYinggzvpSAPs13t0ShoI41wxnl1Hc",
+  authDomain: "default-8c09f.firebaseapp.com",
+  projectId: "default-8c09f",
+  storageBucket: "default-8c09f.firebasestorage.app",
+  messagingSenderId: "496248993018",
+  appId: "1:496248993018:web:b4574af6b1de51ee278543"
 };
