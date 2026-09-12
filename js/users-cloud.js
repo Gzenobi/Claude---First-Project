@@ -80,7 +80,8 @@
     'auth/email-already-in-use': 'Ya existe una cuenta con ese email. Ingresa en vez de crear una cuenta nueva.',
     'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
     'auth/invalid-email': 'El email no es válido.',
-    'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos e intenta de nuevo.'
+    'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos e intenta de nuevo.',
+    'auth/missing-email': 'Ingresa tu email para poder enviarte el link.'
   };
 
   function authErrorMessage(err) {
@@ -111,6 +112,9 @@
                 '<input type="password" name="password" autocomplete="' + (mode === 'login' ? 'current-password' : 'new-password') + '" required minlength="6">' +
                 '<span class="field-error"></span>' +
               '</div>' +
+              (mode === 'login' ?
+                '<p class="login-hint" style="text-align:right;margin-top:-8px"><a href="#" id="forgot-password-link" style="font-size:12px">¿Olvidaste tu contraseña?</a></p>'
+                : '') +
               (mode === 'signup' ?
                 '<div class="form-field" data-field="name">' +
                   '<label>Tu nombre <span class="req">*</span></label>' +
@@ -138,6 +142,35 @@
         draw();
       });
 
+      var forgotLink = document.getElementById('forgot-password-link');
+      if (forgotLink) {
+        forgotLink.addEventListener('click', function (e) {
+          e.preventDefault();
+          var emailInput = document.querySelector('#login-form input[name="email"]');
+          var email = emailInput.value.trim();
+          var errBox = document.getElementById('login-general-error');
+          if (!email) {
+            var emailField = emailInput.closest('.form-field');
+            emailField.classList.add('invalid');
+            emailField.querySelector('.field-error').textContent = 'Ingresa tu email para poder enviarte el link';
+            return;
+          }
+          var originalText = forgotLink.textContent;
+          forgotLink.textContent = 'Enviando...';
+          auth.sendPasswordResetEmail(email).then(function () {
+            errBox.style.color = 'var(--akzo-sky)';
+            errBox.textContent = 'Listo — revisá tu email (' + email + ') para elegir una nueva contraseña. Si no lo ves, mirá spam.';
+            errBox.style.display = '';
+          }).catch(function (err) {
+            errBox.style.color = 'var(--akzo-fuchsia)';
+            errBox.textContent = authErrorMessage(err);
+            errBox.style.display = '';
+          }).then(function () {
+            forgotLink.textContent = originalText;
+          });
+        });
+      }
+
       document.getElementById('login-form').addEventListener('submit', function (e) {
         e.preventDefault();
         var form = e.target;
@@ -145,6 +178,7 @@
         var password = form.password.value;
         var errBox = document.getElementById('login-general-error');
         errBox.style.display = 'none';
+        errBox.style.color = 'var(--akzo-fuchsia)';
         errBox.textContent = '';
 
         if (mode === 'signup' && !form.name.value.trim()) {
