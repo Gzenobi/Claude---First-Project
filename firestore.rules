@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para el CRM AkzoNobel — sincronización en
+// la nube OPCIONAL. Copiar este archivo (o su contenido) a la pestaña
+// "Reglas" de Firestore en la consola de Firebase del proyecto real, o
+// desplegarlo con `firebase deploy --only firestore:rules`.
+//
+// Modelo de datos:
+//   users/{uid}            perfil { name, role } de cada persona autenticada
+//   clients/{id}            clientes, con campo ownerId (uid del dueño, o 'seed')
+//   projects/{id}            proyectos, idem
+//   activities/{id}           actividades, idem
+//   materials/{id}            catálogo compartido — visible/editable por todos
+//
+// "Representante Comercial" / "Sales Representative" solo puede leer/escribir
+// sus propios registros (ownerId == su uid) más los datos de ejemplo
+// compartidos (ownerId == 'seed'). "Administrador" ve y edita todo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myRole() == 'Administrador';
+    }
+
+    // Perfil de cada usuario (nombre + rol). Cada quien gestiona el suyo;
+    // el administrador puede leer el de cualquiera (por ejemplo para futuras
+    // vistas de gestión de equipo).
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Catálogo de materiales: compartido, visible y editable por cualquier
+    // usuario autenticado (no es información comercial de un representante).
+    match /materials/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Clientes, proyectos y actividades: aislados por representante. Un
+    // administrador ve y edita todo; un representante solo lo suyo más los
+    // datos de ejemplo compartidos (ownerId == 'seed').
+    match /clients/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid || resource.data.ownerId == 'seed');
+      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || request.resource.data.ownerId == 'seed');
+      allow update, delete: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid);
+    }
+    match /projects/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid || resource.data.ownerId == 'seed');
+      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || request.resource.data.ownerId == 'seed');
+      allow update, delete: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid);
+    }
+    match /activities/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid || resource.data.ownerId == 'seed');
+      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || request.resource.data.ownerId == 'seed');
+      allow update, delete: if isSignedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid);
+    }
+  }
+}
