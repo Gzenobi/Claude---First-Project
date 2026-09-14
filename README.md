@@ -112,7 +112,9 @@ El CRM se puede "instalar" en el celular como una app, con su propio ícono en l
 4. Compartí esa URL con el equipo. (Si no vas a usar sincronización en la nube, también sirve: la app funciona en modo 100% local incluso publicada así, cada celular/computadora guarda lo suyo — ver "Sincronización en la nube" para la diferencia.)
 5. Cada vez que se modifique el proyecto, repetir el paso 3 (`npx firebase-tools deploy --only hosting`) para publicar la versión nueva.
 
-**CRM de AkzoNobel Marine & Protective Coatings, ya publicado:** [https://default-8c09f.web.app](https://default-8c09f.web.app)
+**CRM de AkzoNobel Marine & Protective Coatings, ya publicado:** [https://akzonobel-crm.web.app](https://akzonobel-crm.web.app)
+
+(El proyecto de Firebase se llama internamente `default-8c09f` — eso no cambia — pero se creó un sitio de Hosting adicional con un nombre más amigable, `akzonobel-crm`, vinculado mediante un target de Hosting llamado `main`. El comando para publicar sigue siendo el mismo, `firebase deploy --only hosting`.)
 
 **Para instalarla en el celular**, con esa URL abierta:
 - **Android (Chrome)**: aparece un banner "Agregar AkzoNobel CRM a la pantalla de inicio", o desde el menú ⋮ → "Instalar app".
