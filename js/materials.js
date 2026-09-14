@@ -13,7 +13,8 @@
     categoria: '',
     sort: { key: 'nombre', dir: 'asc' },
     page: 1,
-    pageSize: 10
+    pageSize: 10,
+    selected: {}
   };
 
   var CATEGORY_BADGE = {
@@ -181,10 +182,13 @@
             '<select id="material-filter-categoria"><option value="">Todas las categorías</option>' + UI.renderSelectOptions(CRM.Constants.MATERIAL_CATEGORIES, state.categoria) + '</select>' +
             '<span class="filter-chip-count">' + filtered.length + ' material(es)</span>' +
           '</div>' +
+          UI.bulkActionBarHTML(Object.keys(state.selected).length, 'Eliminar seleccionados', 'btn-bulk-delete-materials') +
           UI.renderTable({
             columns: buildColumns(),
             rows: page.items,
             sortState: state.sort,
+            selectable: true,
+            selectedIds: state.selected,
             emptyState: {
               icon: 'package', title: 'Sin materiales todavía',
               message: 'Sube una planilla XLSX/CSV con tu catálogo o agrega materiales manualmente.',
@@ -226,6 +230,46 @@
         renderView(container, materials);
       });
     });
+
+    container.querySelectorAll('.row-select').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-id');
+        if (cb.checked) state.selected[id] = true; else delete state.selected[id];
+        renderView(container, materials);
+      });
+    });
+    var selectAllCb = container.querySelector('.row-select-all');
+    if (selectAllCb) {
+      selectAllCb.addEventListener('change', function () {
+        page.items.forEach(function (row) {
+          if (selectAllCb.checked) state.selected[row.id] = true; else delete state.selected[row.id];
+        });
+        renderView(container, materials);
+      });
+    }
+    var bulkDeleteBtn = document.getElementById('btn-bulk-delete-materials');
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.addEventListener('click', function () {
+        var ids = Object.keys(state.selected);
+        UI.confirmDialog({
+          title: 'Eliminar materiales',
+          message: 'Vas a eliminar ' + ids.length + ' material(es) del catálogo. Esta acción no se puede deshacer.',
+          confirmText: 'Eliminar',
+          danger: true
+        }).then(function (ok) {
+          if (!ok) return;
+          Promise.all(ids.map(function (id) { return CRM.Storage.remove('materials', id); })).then(function () {
+            state.selected = {};
+            UI.toast('Materiales eliminados', 'success');
+            render(container);
+          });
+        });
+      });
+      document.getElementById('btn-bulk-delete-materials-clear').addEventListener('click', function () {
+        state.selected = {};
+        renderView(container, materials);
+      });
+    }
 
     container.querySelectorAll('.btn-edit').forEach(function (btn) {
       btn.addEventListener('click', function () {

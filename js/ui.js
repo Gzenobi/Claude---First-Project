@@ -243,7 +243,14 @@
     var columns = opts.columns || [];
     var rows = opts.rows || [];
     var sortState = opts.sortState || {};
+    var selectable = !!opts.selectable;
+    var selectedIds = opts.selectedIds || {};
+    var extraCols = (opts.actions ? 1 : 0) + (selectable ? 1 : 0);
     var html = '<div class="table-scroll"><table class="data-table"><thead><tr>';
+    if (selectable) {
+      var allSelected = rows.length > 0 && rows.every(function (r) { return selectedIds[r.id]; });
+      html += '<th class="select-col"><input type="checkbox" class="row-select-all"' + (allSelected ? ' checked' : '') + '></th>';
+    }
     columns.forEach(function (col) {
       var arrow = '';
       if (sortState.key === col.key) arrow = '<span class="sort-arrow">' + (sortState.dir === 'asc' ? '▲' : '▼') + '</span>';
@@ -253,10 +260,11 @@
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-      html += '<tr><td colspan="' + (columns.length + (opts.actions ? 1 : 0)) + '">' + emptyStateHTML(opts.emptyState || {}) + '</td></tr>';
+      html += '<tr><td colspan="' + (columns.length + extraCols) + '">' + emptyStateHTML(opts.emptyState || {}) + '</td></tr>';
     } else {
       rows.forEach(function (row) {
         html += '<tr data-id="' + escapeHtml(row.id) + '">';
+        if (selectable) html += '<td class="select-col"><input type="checkbox" class="row-select" data-id="' + escapeHtml(row.id) + '"' + (selectedIds[row.id] ? ' checked' : '') + '></td>';
         columns.forEach(function (col) {
           var content = col.render ? col.render(row) : escapeHtml(row[col.key]);
           html += '<td' + (col.align ? ' style="text-align:' + col.align + '"' : '') + (col.className ? ' class="' + col.className + '"' : '') + '>' + content + '</td>';
@@ -267,6 +275,17 @@
     }
     html += '</tbody></table></div>';
     return html;
+  }
+
+  /* Barra de acciones masivas (estilo "related list"/list view de Salesforce),
+     aparece arriba de una tabla seleccionable cuando hay filas marcadas. */
+  function bulkActionBarHTML(count, actionLabel, actionId) {
+    if (!count) return '';
+    return '<div class="bulk-action-bar">' +
+      '<span>' + count + ' seleccionado' + (count === 1 ? '' : 's') + '</span>' +
+      '<button type="button" class="btn btn-danger btn-sm" id="' + actionId + '">' + icon('trash-2') + escapeHtml(actionLabel) + '</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" id="' + actionId + '-clear">Cancelar</button>' +
+      '</div>';
   }
 
   /* ---------------- Import summary (shared by Configuración y Equipo) ---------------- */
@@ -321,6 +340,7 @@
     paginate: paginate,
     renderPagination: renderPagination,
     renderTable: renderTable,
+    bulkActionBarHTML: bulkActionBarHTML,
     renderSelectOptions: renderSelectOptions,
     renderImportSummaryHTML: renderImportSummaryHTML
   };

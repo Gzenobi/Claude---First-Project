@@ -20,7 +20,7 @@
     var cols = [
       { key: 'nombre', label: 'Cliente', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.nombre) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.planta) + '</div>'; } },
       { key: 'segmento', label: 'Segmento', sortable: true, render: function (r) { return UI.badge(r.segmento, segmentBadgeClass(r.segmento)); } },
-      { key: 'ciudad', label: 'Ubicación', sortable: true, render: function (r) { return UI.escapeHtml(r.ciudad) + ', ' + UI.escapeHtml(r.pais); } },
+      { key: 'ciudad', label: 'Ubicación', sortable: true, render: function (r) { return UI.escapeHtml([r.ciudad, r.provincia, r.pais].filter(Boolean).join(', ')); } },
       { key: 'contacto', label: 'Contacto', sortable: true, render: function (r) { return '<div class="cell-primary">' + UI.escapeHtml(r.contacto) + '</div><div class="cell-secondary">' + UI.escapeHtml(r.email) + '</div>'; } },
       { key: 'potencialAnual', label: 'Potencial anual', sortable: true, align: 'right', render: function (r) { return UI.formatCurrency(r.potencialAnual); } },
       { key: 'competidor', label: 'Competidor', sortable: true, render: function (r) { return UI.escapeHtml(r.competidor || '—'); } }
@@ -38,7 +38,7 @@
 
   function applyFiltersSort(clients) {
     var result = clients.filter(function (c) {
-      var matchesSearch = !state.search || (c.nombre + ' ' + c.contacto + ' ' + c.ciudad + ' ' + c.planta).toLowerCase().indexOf(state.search.toLowerCase()) !== -1;
+      var matchesSearch = !state.search || (c.nombre + ' ' + c.contacto + ' ' + c.ciudad + ' ' + (c.provincia || '') + ' ' + c.planta).toLowerCase().indexOf(state.search.toLowerCase()) !== -1;
       var matchesSegmento = !state.segmento || c.segmento === state.segmento;
       return matchesSearch && matchesSegmento;
     });
@@ -70,6 +70,7 @@
         selectField('segmento', 'Segmento', CRM.Constants.SEGMENTS, client.segmento, true) +
         field('planta', 'Planta / instalación', 'text', client.planta) +
         field('ciudad', 'Ciudad', 'text', client.ciudad) +
+        field('provincia', 'Provincia', 'text', client.provincia) +
         field('pais', 'País', 'text', client.pais) +
         field('contacto', 'Contacto principal', 'text', client.contacto) +
         field('email', 'Email', 'email', client.email, true) +
@@ -78,7 +79,81 @@
         field('potencialAnual', 'Potencial anual (USD)', 'number', client.potencialAnual) +
         textareaField('observaciones', 'Observaciones', client.observaciones) +
       '</div>' +
+      '<div id="contactos-related-list"></div>' +
+      '<div id="sedes-related-list"></div>' +
     '</form>';
+  }
+
+  /* ---------------- Related lists: Contactos adicionales / Sedes adicionales ----------------
+     Se manejan por fuera de FormData (que no soporta bien filas repetidas) — cada fila lee y
+     escribe directo al array en memoria antes de volver a dibujar la sección. */
+  var CONTACTO_FIELDS = [
+    { key: 'nombre', label: 'Nombre', type: 'text' },
+    { key: 'cargo', label: 'Cargo', type: 'text' },
+    { key: 'email', label: 'Email', type: 'email' },
+    { key: 'telefono', label: 'Teléfono', type: 'text' }
+  ];
+  var SEDE_FIELDS = [
+    { key: 'etiqueta', label: 'Nombre de la sede', type: 'text' },
+    { key: 'direccion', label: 'Dirección', type: 'text' },
+    { key: 'ciudad', label: 'Ciudad', type: 'text' },
+    { key: 'provincia', label: 'Provincia', type: 'text' },
+    { key: 'pais', label: 'País', type: 'text' }
+  ];
+
+  function relatedRowHTML(fields, row, index) {
+    return '<div class="related-row" data-index="' + index + '">' +
+      fields.map(function (f) {
+        return '<input type="' + f.type + '" data-f="' + f.key + '" placeholder="' + f.label + '" value="' + UI.escapeHtml(row[f.key] || '') + '">';
+      }).join('') +
+      '<button type="button" class="icon-btn related-row-remove" title="Quitar">' + UI.icon('x') + '</button>' +
+    '</div>';
+  }
+
+  function relatedListHTML(title, fields, rows) {
+    return '<div class="related-list">' +
+      '<div class="related-list-header"><h4>' + UI.escapeHtml(title) + ' <span class="related-count">' + rows.length + '</span></h4>' +
+        '<button type="button" class="btn btn-outline btn-sm related-add">' + UI.icon('plus') + 'Agregar</button>' +
+      '</div>' +
+      (rows.length
+        ? '<div class="related-rows">' + rows.map(function (row, i) { return relatedRowHTML(fields, row, i); }).join('') + '</div>'
+        : '<p class="related-empty">Sin registros — usa "Agregar" para sumar uno.</p>') +
+    '</div>';
+  }
+
+  function readRelatedRows(listEl, fields) {
+    return Array.from(listEl.querySelectorAll('.related-row')).map(function (rowEl) {
+      var row = {};
+      fields.forEach(function (f) { row[f.key] = rowEl.querySelector('[data-f="' + f.key + '"]').value.trim(); });
+      return row;
+    });
+  }
+
+  function wireRelatedList(container, title, fields, rows) {
+    function draw() {
+      container.innerHTML = relatedListHTML(title, fields, rows);
+      container.querySelector('.related-add').addEventListener('click', function () {
+        rows = readRelatedRows(container, fields);
+        var blank = {}; fields.forEach(function (f) { blank[f.key] = ''; });
+        rows.push(blank);
+        draw();
+      });
+      container.querySelectorAll('.related-row-remove').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          rows = readRelatedRows(container, fields);
+          rows.splice(Number(btn.closest('.related-row').getAttribute('data-index')), 1);
+          draw();
+        });
+      });
+    }
+    draw();
+    return {
+      getRows: function () {
+        return readRelatedRows(container, fields).filter(function (row) {
+          return fields.some(function (f) { return row[f.key]; });
+        });
+      }
+    };
   }
 
   function field(name, label, type, value, required) {
@@ -136,6 +211,8 @@
             var record = Object.assign({}, existing, data, {
               id: existing ? existing.id : UI.generateId(),
               potencialAnual: Number(data.potencialAnual) || 0,
+              contactosAdicionales: contactosList.getRows(),
+              sedesAdicionales: sedesList.getRows(),
               createdAt: existing ? existing.createdAt : now,
               updatedAt: now
             });
@@ -149,6 +226,8 @@
         }
       ]
     });
+    var contactosList = wireRelatedList(document.getElementById('contactos-related-list'), 'Contactos adicionales', CONTACTO_FIELDS, (existing && existing.contactosAdicionales) ? existing.contactosAdicionales.slice() : []);
+    var sedesList = wireRelatedList(document.getElementById('sedes-related-list'), 'Sedes adicionales', SEDE_FIELDS, (existing && existing.sedesAdicionales) ? existing.sedesAdicionales.slice() : []);
     return modal;
   }
 

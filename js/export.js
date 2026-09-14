@@ -8,7 +8,7 @@
   var CRM = global.CRM = global.CRM || {};
 
   var EXPORT_COLUMNS = {
-    clients: ['id', 'nombre', 'segmento', 'planta', 'ciudad', 'pais', 'contacto', 'email', 'telefono', 'competidor', 'potencialAnual', 'observaciones', 'origenUsuario', 'createdAt', 'updatedAt'],
+    clients: ['id', 'nombre', 'segmento', 'planta', 'ciudad', 'provincia', 'pais', 'contacto', 'email', 'telefono', 'competidor', 'potencialAnual', 'observaciones', 'origenUsuario', 'createdAt', 'updatedAt'],
     projects: ['id', 'clienteId', 'nombreProyecto', 'segmento', 'coatingSystem', 'estado', 'valor', 'volumenLitros', 'probabilidad', 'fechaCierre', 'responsable', 'competidor', 'notasTecnicas', 'origenUsuario', 'createdAt', 'updatedAt'],
     activities: ['id', 'tipo', 'clienteId', 'proyectoId', 'titulo', 'descripcion', 'fecha', 'responsable', 'estado', 'origenUsuario', 'createdAt', 'updatedAt'],
     materials: ['id', 'codigo', 'nombre', 'categoria', 'unidad', 'precioUnitario', 'stock', 'proveedor', 'notas', 'origenUsuario', 'createdAt', 'updatedAt']
