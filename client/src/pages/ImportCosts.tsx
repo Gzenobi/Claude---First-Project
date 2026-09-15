@@ -33,6 +33,7 @@ export function ImportCosts() {
   const [mappings, setMappings] = useState<Record<string, MappingState>>({});
   const [versionLabel, setVersionLabel] = useState("");
   const [result, setResult] = useState<Awaited<ReturnType<typeof api.imports.commitCosts>> | null>(null);
+  const [costSource, setCostSource] = useState<"CKM3_USD_LTR" | "COSTO_UNIDAD">("CKM3_USD_LTR");
   const inputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(list: FileList | null) {
@@ -64,7 +65,9 @@ export function ImportCosts() {
           },
         };
       }
-      setPreview(await api.imports.previewCosts(files, templates));
+      const sapCostSources: Record<string, "CKM3_USD_LTR" | "COSTO_UNIDAD"> = {};
+      files.forEach((f) => (sapCostSources[f.name] = costSource));
+      setPreview(await api.imports.previewCosts(files, templates, sapCostSources));
     } finally {
       setBusy(false);
     }
@@ -125,6 +128,15 @@ export function ImportCosts() {
               </li>
             ))}
           </ul>
+          <div className="mt-3 text-sm">
+            <label className="text-xs text-gray-dark uppercase block mb-1">
+              Costo a usar (solo aplica a planillas maestras SAP detectadas automáticamente)
+            </label>
+            <select className="input" value={costSource} onChange={(e) => setCostSource(e.target.value as "CKM3_USD_LTR" | "COSTO_UNIDAD")}>
+              <option value="CKM3_USD_LTR">Costo CKM3 USD/Litro (recomendado — ya normalizado)</option>
+              <option value="COSTO_UNIDAD">Costo por unidad (envase) en la moneda declarada</option>
+            </select>
+          </div>
           <button className="btn-primary mt-3" disabled={busy} onClick={analyze}>
             {busy ? "Analizando..." : "Analizar archivos"}
           </button>
@@ -162,32 +174,39 @@ export function ImportCosts() {
         <div className="card p-5">
           <h3 className="font-semibold text-navy mb-3">
             Vista previa: {preview.totals.new} nuevo(s), {preview.totals.updated} actualizado(s), {preview.totals.unchanged} sin cambios,{" "}
-            {preview.totals.rejected} rechazado(s)
+            {preview.totals.rejected} rechazado(s), {preview.totals.noCost} sin costo en el origen
           </h3>
           <table className="w-full text-sm mb-4">
             <thead>
               <tr className="text-left text-xs text-gray-dark uppercase border-b border-(--border-subtle)">
-                <th className="py-1.5">Código</th>
-                <th className="py-1.5">Descripción</th>
-                <th className="py-1.5">Tipo</th>
-                <th className="py-1.5 text-right">Costo</th>
+                <th className="py-1.5 pr-4">Código</th>
+                <th className="py-1.5 pr-4">Descripción</th>
+                <th className="py-1.5 pr-4">Tipo</th>
+                <th className="py-1.5 pr-4 text-right">Costo</th>
                 <th className="py-1.5">Clasificación</th>
               </tr>
             </thead>
             <tbody>
               {preview.rows.map((r, i) => (
                 <tr key={i} className="border-b border-(--border-subtle) last:border-0">
-                  <td className="py-1.5 font-mono text-xs">{r.code}</td>
-                  <td className="py-1.5">{r.description}</td>
-                  <td className="py-1.5">{r.type}</td>
-                  <td className="py-1.5 text-right">
-                    {r.amount} {r.currency}
+                  <td className="py-1.5 pr-4 font-mono text-xs whitespace-nowrap">{r.code}</td>
+                  <td className="py-1.5 pr-4">{r.description}</td>
+                  <td className="py-1.5 pr-4">{r.type}</td>
+                  <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                    {r.amount ? (
+                      <>
+                        {r.amount} {r.currency}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="py-1.5">
                     {r.classification === "NEW" && <span className="badge badge-ok">Nuevo</span>}
                     {r.classification === "UPDATED" && <span className="badge badge-warning">Actualizado</span>}
                     {r.classification === "UNCHANGED" && <span className="badge" style={{ background: "#eef1f5", color: "#5b6b7a" }}>Sin cambios</span>}
                     {r.classification === "REJECTED" && <span className="badge badge-error">Rechazado</span>}
+                    {r.classification === "NO_COST" && <span className="badge badge-error">Sin costo (origen)</span>}
                     {r.reason && <div className="text-xs text-gray-dark mt-0.5">{r.reason}</div>}
                   </td>
                 </tr>
@@ -211,6 +230,7 @@ export function ImportCosts() {
             <li>Actualizados: {result.updated}</li>
             <li>Sin cambios: {result.unchanged}</li>
             <li>Rechazados: {result.rejected}</li>
+            <li>Registrados sin costo (origen no lo declara): {result.noCost}</li>
           </ul>
         </div>
       )}

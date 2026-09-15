@@ -51,9 +51,11 @@ importsRouter.post(
       return;
     }
     const templates = req.body.templates ? JSON.parse(req.body.templates) : {};
+    const sapCostSources = req.body.sapCostSources ? JSON.parse(req.body.sapCostSources) : {};
     const preview = await previewCostImport(
       files.map((f) => ({ name: f.originalname, buffer: f.buffer })),
-      templates
+      templates,
+      sapCostSources
     );
     res.json(preview);
   })

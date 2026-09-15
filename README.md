@@ -10,7 +10,7 @@ Aplicación web para calcular el costo real de fabricación y el precio de venta
 
 ## 1. Fase de descubrimiento (Excel reales analizados)
 
-El repositorio no incluía archivos Excel al iniciar el proyecto. Durante el desarrollo se recibieron **5 planillas reales de fórmulas de color** (`AAC018.xls`, `AAD704.xls`, `AAE019.xls`, `AAJ019_REF.xls`, `CLB108.xls`), conservadas sin modificar y de solo lectura en [`source-data/formulas/`](./source-data/formulas/). No se recibió una planilla maestra de costos real, por lo que ese importador se diseñó de forma genérica y configurable (ver §5).
+El repositorio no incluía archivos Excel al iniciar el proyecto. Durante el desarrollo se recibieron **5 planillas reales de fórmulas de color** (`AAC018.xls`, `AAD704.xls`, `AAE019.xls`, `AAJ019_REF.xls`, `CLB108.xls`) y, más tarde, **una planilla maestra de costos real** (`Costeo_Colores_-_DATOS_IP_-_Ago_26.xlsx`), todas conservadas sin modificar y de solo lectura en [`source-data/`](./source-data/).
 
 ### 1.1 Estructura encontrada
 
@@ -43,6 +43,18 @@ Esto se marca explícitamente con `baseQuantityBasis = "FILL_TO_VOLUME"` en el m
 - Verificado con pruebas automatizadas contra los 5 archivos reales: [`server/src/__tests__/chromascanParser.real.test.ts`](./server/src/__tests__/chromascanParser.real.test.ts).
 
 Como los archivos reales podían no ser representativos de todo el universo de planillas de International Paint, el importador **no está hardcodeado a esta única estructura**: además del parser automático "Chromascan", existe un asistente de mapeo de columnas genérico (§5) para cualquier otro formato.
+
+### 1.4 Planilla maestra de costos real (SAP "Materiales IP")
+
+La planilla real (hoja `Materiales IP`, 74 filas de datos) tiene una estructura fija y reconocible automáticamente:
+
+`Código SAP | Descripción | Marca | Negocio global | A/B/M | Codigo Parte B | Contenido (L) | Costo por unidad | Moneda | Estado | Costo CKM3 AR$ Pieza | Costo CKM3 USD Pieza | Costo CKM3 USD Ltr`
+
+- **A/B/M confirmado con el usuario**: `A` = Parte A (base) de un producto 2K, `B` = Parte B de un producto 2K, `M` = mono-componente (1K) **o** colorante (cuando `Marca = "COLORANTE"`).
+- **Vínculo de kit Base→Parte B**: la columna `Codigo Parte B` indica, para cada envase de Base, el código SAP del envase de Parte B específico que lo acompaña (ej. una base de 16,8 L usa el componente B de 2,83 L; la *misma* base line en presentación de 2,72 L usa un componente B de 0,51 L distinto). Se modeló como `Component.linkedPartBComponentId`, y la cantidad de Parte B a aplicar por conjunto es el **envase completo** del componente B vinculado — más preciso que inventar un ratio de mezcla fijo por producto. Verificado con `INTERTHANE 990 BASE PASTEL` (16,8 L, $4,00/L) + su Parte B vinculado (2,83 L, $6,03/L) = $84,27 el conjunto.
+- **`Estado = "SIN COSTO"`**: 5 de las 74 filas declaran explícitamente que no tienen costo cargado. Esas filas **se registran igual como componente** (quedan visibles en el maestro) pero **no se crea ningún `ComponentCost`** — nunca se inventa un valor. El dashboard y el semáforo de validación las señalan correctamente como "sin costo".
+- **Ambigüedad real, resuelta con un valor por defecto explícito**: cada fila trae *dos* costos que no siempre coinciden — `Costo por unidad` (en la `Moneda` declarada, costo de insumo) y `Costo CKM3 USD Pieza/Ltr` (costeo estándar SAP, ya normalizado a USD y a litro). Por defecto el importador usa **`Costo CKM3 USD Ltr`** (evita matemática de envase y conversión de moneda), configurable a `Costo por unidad` desde la pantalla de importación. Verificado con `server/src/__tests__/sapCostMasterParser.real.test.ts`.
+- **Sin superposición con los 5 archivos de fórmulas de color** recibidos antes: esta planilla cubre INTERGARD 2002/740, INTERLAC 667, INTERSEAL 1509/670HS, INTERSHEEN 579, INTERTHANE 3230/870/990, INTERTUF 262 e INTERZONE 954 — ninguno de esos productos ni códigos (SAP, numéricos) coincide con los productos (`Intergard 345`, `Interlac 665`) ni con los códigos tintométricos (`AAA011`, `GVA127`, etc., alfanuméricos) de las 5 fórmulas Chromascan. **Son dos sistemas de codificación distintos** y, con los archivos recibidos hasta ahora, no hay manera automática de vincular una fórmula de color Chromascan con su costo SAP real — hace falta una tabla de equivalencia (código Chromascan ↔ código SAP) o vincular manualmente cada componente. Mientras no exista esa referencia, una fórmula importada con códigos Chromascan seguirá marcando `CÁLCULO INCOMPLETO` aunque el maestro de costos SAP ya esté cargado, y esto es intencional: el sistema nunca calcula con datos que no están genuinamente conectados.
 
 ---
 
@@ -89,7 +101,12 @@ Capa de servicios pura y testeada, sin lógica financiera en componentes React (
 
 ## 4. Productos 1K/2K y Parte B
 
-La clasificación 1K/2K y la asociación de Parte B **no se infieren de las fórmulas importadas** (esa info no está en los Excel de fórmulas) — se definen manualmente en **Productos**, junto con el ratio de mezcla Parte A:Parte B (ej. 4:1), que es configurable por producto y nunca asumido fijo.
+La clasificación 1K/2K **no se infiere de las fórmulas importadas** (esa info no está en los Excel de fórmulas) — se define manualmente en **Productos**.
+
+La cantidad de Parte B a usar por conjunto se resuelve de dos formas posibles, en este orden:
+
+1. **Vínculo de kit desde el maestro de costos** (automático, preferido cuando existe): si la planilla de costos declara qué envase de Parte B acompaña a cada envase de Base (ej. columna `Codigo Parte B` del formato SAP, ver §1.4), se usa el envase completo de ese componente B vinculado — sin inventar ningún ratio.
+2. **Ratio de mezcla manual** (`ProductPartB.mixRatioA`/`mixRatioB`, ej. 4:1): configurable por producto desde **Productos**, para cuando el maestro de costos no trae esa información.
 
 ---
 

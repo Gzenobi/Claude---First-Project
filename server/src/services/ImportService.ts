@@ -5,6 +5,7 @@ import { parseWorkbook } from "../lib/excel.js";
 import { detectChromascan, parseChromascanSheet } from "../import/chromascanParser.js";
 import { parseGenericFormulaSheet, suggestFormulaColumnMapping } from "../import/genericFormulaParser.js";
 import { parseCostMasterSheet, suggestCostMasterColumnMapping } from "../import/costMasterParser.js";
+import { detectSapCostMaster, parseSapCostMasterSheet, type SapCostSource } from "../import/sapCostMasterParser.js";
 import type {
   FormulaColumnTemplate,
   CostMasterColumnTemplate,
@@ -12,6 +13,8 @@ import type {
   ParsedComponentCostRow,
   RowIssue,
 } from "../import/types.js";
+
+type CostRowClassification = "NEW" | "UPDATED" | "UNCHANGED" | "REJECTED" | "NO_COST";
 
 // ---------------------------------------------------------------------------
 // Almacenamiento en memoria de lotes en estado "preview" (no confirmados).
@@ -28,7 +31,7 @@ interface PendingFormulaBatch {
 interface PendingCostBatch {
   type: "COST_MASTER";
   createdAt: number;
-  rows: (ParsedComponentCostRow & { classification: "NEW" | "UPDATED" | "UNCHANGED" | "REJECTED"; reason?: string })[];
+  rows: (ParsedComponentCostRow & { classification: CostRowClassification; reason?: string })[];
   issues: RowIssue[];
 }
 type PendingBatch = PendingFormulaBatch | PendingCostBatch;
@@ -331,17 +334,18 @@ export interface CostImportPreview {
     code: string;
     description: string;
     type: string;
-    classification: "NEW" | "UPDATED" | "UNCHANGED" | "REJECTED";
+    classification: CostRowClassification;
     reason?: string;
-    amount: string;
-    currency: string;
+    amount?: string;
+    currency?: string;
   }[];
-  totals: { new: number; updated: number; unchanged: number; rejected: number };
+  totals: { new: number; updated: number; unchanged: number; rejected: number; noCost: number };
 }
 
 export async function previewCostImport(
   files: { name: string; buffer: Buffer }[],
-  templates: Record<string, CostMasterColumnTemplate>
+  templates: Record<string, CostMasterColumnTemplate>,
+  sapCostSources: Record<string, SapCostSource> = {}
 ): Promise<CostImportPreview> {
   const batchId = randomUUID();
   const filePreviews: CostFilePreview[] = [];
@@ -352,7 +356,14 @@ export async function previewCostImport(
     try {
       const wb = parseWorkbook(file.name, file.buffer);
       const sheet = wb.sheets[0];
-      if (!templates[file.name]) {
+      const sapDetected = detectSapCostMaster(sheet);
+
+      let outcome: { rows: ParsedComponentCostRow[]; issues: RowIssue[] };
+      if (sapDetected) {
+        outcome = parseSapCostMasterSheet(file.name, sheet, sapCostSources[file.name] ?? "CKM3_USD_LTR");
+      } else if (templates[file.name]) {
+        outcome = parseCostMasterSheet(file.name, sheet, templates[file.name]);
+      } else {
         const suggestedHeaders = suggestCostMasterColumnMapping(sheet) ?? undefined;
         filePreviews.push({
           fileName: file.name,
@@ -363,7 +374,7 @@ export async function previewCostImport(
         });
         continue;
       }
-      const outcome = parseCostMasterSheet(file.name, sheet, templates[file.name]);
+
       allIssues.push(...outcome.issues);
 
       for (const row of outcome.rows) {
@@ -390,6 +401,7 @@ export async function previewCostImport(
     updated: allRows.filter((r) => r.classification === "UPDATED").length,
     unchanged: allRows.filter((r) => r.classification === "UNCHANGED").length,
     rejected: allRows.filter((r) => r.classification === "REJECTED").length,
+    noCost: allRows.filter((r) => r.classification === "NO_COST").length,
   };
 
   return {
@@ -410,7 +422,11 @@ export async function previewCostImport(
 
 async function classifyCostRow(
   row: ParsedComponentCostRow
-): Promise<ParsedComponentCostRow & { classification: "NEW" | "UPDATED" | "UNCHANGED" | "REJECTED"; reason?: string }> {
+): Promise<ParsedComponentCostRow & { classification: CostRowClassification; reason?: string }> {
+  if (!row.hasCost) {
+    return { ...row, classification: "NO_COST", reason: "El origen no declara costo para este componente (ej. Estado = SIN COSTO)." };
+  }
+
   const existing = await prisma.component.findUnique({
     where: { code: row.code },
     include: { costs: { where: { isCurrent: true } } },
@@ -425,7 +441,7 @@ async function classifyCostRow(
   const current = existing.costs[0];
   if (!current) return { ...row, classification: "NEW" };
 
-  const sameAmount = current.amount.toString() === new Decimal(row.amount).toString();
+  const sameAmount = current.amount.toString() === new Decimal(row.amount!).toString();
   const sameCurrency = current.currency === row.currency;
   const sameBasis = current.costBasis === row.costBasis;
   const samePackage =
@@ -438,7 +454,10 @@ async function classifyCostRow(
   return { ...row, classification: "UPDATED" };
 }
 
-export async function commitCostImport(batchId: string, versionLabel: string): Promise<CommitSummary & { new: number; updated: number; unchanged: number }> {
+export async function commitCostImport(
+  batchId: string,
+  versionLabel: string
+): Promise<CommitSummary & { new: number; updated: number; unchanged: number; noCost: number }> {
   const batch = pendingBatches.get(batchId);
   if (!batch || batch.type !== "COST_MASTER") {
     throw new Error("Lote de importación no encontrado o expirado. Vuelva a analizar los archivos.");
@@ -456,6 +475,11 @@ export async function commitCostImport(batchId: string, versionLabel: string): P
   let updated = 0;
   let unchanged = 0;
   let rejected = 0;
+  let noCost = 0;
+  // code (del sistema de origen, ej. SAP) -> id del Component ya upserteado en este lote
+  const codeToComponentId = new Map<string, string>();
+  // Component.id (Base) -> código de origen de su Parte B, a resolver una vez cargados todos
+  const pendingPartBLinks = new Map<string, string>();
 
   for (const row of batch.rows) {
     if (row.classification === "REJECTED") {
@@ -464,6 +488,9 @@ export async function commitCostImport(batchId: string, versionLabel: string): P
     }
     if (row.classification === "UNCHANGED") {
       unchanged++;
+      const existing = await prisma.component.findUnique({ where: { code: row.code } });
+      if (existing) codeToComponentId.set(row.code, existing.id);
+      if (row.linkedPartBCode && existing) pendingPartBLinks.set(existing.id, row.linkedPartBCode);
       continue;
     }
 
@@ -472,15 +499,22 @@ export async function commitCostImport(batchId: string, versionLabel: string): P
       update: { description: row.description, density: row.density ? new Decimal(row.density) : undefined },
       create: { code: row.code, description: row.description, type: row.type, baseUnit: row.baseUnit, density: row.density ? new Decimal(row.density) : undefined },
     });
+    codeToComponentId.set(row.code, component.id);
+    if (row.linkedPartBCode) pendingPartBLinks.set(component.id, row.linkedPartBCode);
+
+    if (row.classification === "NO_COST") {
+      noCost++;
+      continue; // se registra el componente en el maestro, pero no se crea/toca ningún costo
+    }
 
     await prisma.componentCost.updateMany({ where: { componentId: component.id, isCurrent: true }, data: { isCurrent: false } });
     await prisma.componentCost.create({
       data: {
         componentId: component.id,
         costVersionId: costVersion.id,
-        amount: new Decimal(row.amount),
-        currency: row.currency,
-        costBasis: row.costBasis,
+        amount: new Decimal(row.amount!),
+        currency: row.currency!,
+        costBasis: row.costBasis!,
         packageSize: row.packageSize ? new Decimal(row.packageSize) : undefined,
         packageUnit: row.packageUnit,
         effectiveDate: row.effectiveDate ? new Date(row.effectiveDate) : undefined,
@@ -492,9 +526,37 @@ export async function commitCostImport(batchId: string, versionLabel: string): P
     else updated++;
   }
 
+  // Resolver vínculos Base -> Parte B (ej. columna "Codigo Parte B" del maestro SAP).
+  // Si el código de Parte B referenciado no existe como componente (porque no vino
+  // en este lote ni en uno anterior), se deja constancia como advertencia en vez
+  // de fallar la importación completa.
+  const unresolvedPartBLinks: string[] = [];
+  for (const [baseComponentId, partBCode] of pendingPartBLinks) {
+    let partBComponentId = codeToComponentId.get(partBCode);
+    if (!partBComponentId) {
+      const found = await prisma.component.findUnique({ where: { code: partBCode } });
+      partBComponentId = found?.id;
+    }
+    if (partBComponentId) {
+      await prisma.component.update({ where: { id: baseComponentId }, data: { linkedPartBComponentId: partBComponentId } });
+    } else {
+      unresolvedPartBLinks.push(partBCode);
+    }
+  }
+  if (unresolvedPartBLinks.length > 0) {
+    await prisma.importError.create({
+      data: {
+        importBatchId: importBatch.id,
+        fileName: "(vínculos Parte B)",
+        severity: "WARNING",
+        message: `No se encontraron como componentes los siguientes códigos de Parte B referenciados: ${unresolvedPartBLinks.join(", ")}.`,
+      },
+    });
+  }
+
   await prisma.importBatch.update({
     where: { id: importBatch.id },
-    data: { summaryJson: JSON.stringify({ created, updated, unchanged, rejected }) },
+    data: { summaryJson: JSON.stringify({ created, updated, unchanged, rejected, noCost }) },
   });
 
   pendingBatches.delete(batchId);
@@ -505,9 +567,10 @@ export async function commitCostImport(batchId: string, versionLabel: string): P
     skippedDuplicates: unchanged,
     rejected,
     errorCount: rejected,
-    warningCount: batch.issues.filter((i) => i.severity === "WARNING").length,
+    warningCount: batch.issues.filter((i) => i.severity === "WARNING").length + (unresolvedPartBLinks.length > 0 ? 1 : 0),
     new: created,
     updated,
     unchanged,
+    noCost,
   };
 }

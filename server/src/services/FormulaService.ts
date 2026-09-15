@@ -50,7 +50,10 @@ export async function getFormulaBreakdown(formulaId: string): Promise<FormulaBre
     where: { id: formulaId },
     include: {
       color: { include: { product: { include: { partB: { include: { component: true } } } } } },
-      components: { include: { component: true }, orderBy: { sortOrder: "asc" } },
+      components: {
+        include: { component: { include: { linkedPartBComponent: true } } },
+        orderBy: { sortOrder: "asc" },
+      },
     },
   });
 
@@ -75,6 +78,9 @@ export async function getFormulaBreakdown(formulaId: string): Promise<FormulaBre
   }
 
   let partBLine: (FormulaLineInput & { componentCostId?: string; costVersionId?: string }) | null = null;
+  const baseFormulaComponent = formula.components.find((fc) => fc.role === "BASE");
+  const kitLinkedPartB = baseFormulaComponent?.component.linkedPartBComponent ?? null;
+
   if (productKind === "TWO_K" && product.partB.length > 0) {
     const link = product.partB[0];
     const { input, componentCostId, costVersionId } = await currentCostInput(link.componentId);
@@ -109,6 +115,42 @@ export async function getFormulaBreakdown(formulaId: string): Promise<FormulaBre
       componentCostId,
       costVersionId,
     };
+  } else if (productKind === "TWO_K" && kitLinkedPartB) {
+    // Sin Parte B configurada manualmente en el producto: se usa el envase de
+    // Parte B vinculado a esta Base específica en el maestro de costos (ej.
+    // columna "Codigo Parte B" de una planilla SAP), en su volumen de envase
+    // completo — más preciso que asumir un ratio de mezcla inventado.
+    const { input, componentCostId, costVersionId } = await currentCostInput(kitLinkedPartB.id);
+    // El tamaño de envase (packageSize/packageUnit) se guarda como metadato
+    // aunque el costBasis vigente sea PER_LITER/PER_KG (ej. maestro SAP
+    // "CKM3 USD/Litro"), justamente para poder usarlo acá como cantidad por
+    // conjunto sin depender de que el costBasis sea PER_PACKAGE.
+    if (input?.packageSize && input.packageUnit) {
+      partBLine = {
+        componentId: kitLinkedPartB.id,
+        code: kitLinkedPartB.code,
+        description: kitLinkedPartB.description,
+        role: "PART_B",
+        quantity: input.packageSize,
+        unit: input.packageUnit,
+        density: kitLinkedPartB.density?.toString(),
+        cost: input,
+        componentCostId,
+        costVersionId,
+      };
+    } else {
+      // No hay forma de saber cuánta Parte B usar sin un tamaño de envase
+      // declarado (ej. si el costo se cargó como PER_LITER sin "Contenido").
+      partBLine = {
+        componentId: kitLinkedPartB.id,
+        code: kitLinkedPartB.code,
+        description: kitLinkedPartB.description,
+        role: "PART_B",
+        quantity: "0",
+        unit: "L",
+        cost: undefined,
+      };
+    }
   }
 
   const baseLine = lines.find((l) => l.role === "BASE");

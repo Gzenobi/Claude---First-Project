@@ -43,14 +43,20 @@ export interface ParsedComponentCostRow {
   code: string;
   description: string;
   type: "BASE" | "CONCENTRATE" | "PART_B";
-  amount: string;
-  currency: "USD" | "EUR" | "ARS";
-  costBasis: "PER_PACKAGE" | "PER_LITER" | "PER_KG";
+  /** false cuando el origen declara explícitamente "sin costo" (ej. Estado=SIN COSTO): el
+   * componente se registra en el maestro igual, pero sin crear un ComponentCost. */
+  hasCost: boolean;
+  amount?: string;
+  currency?: "USD" | "EUR" | "ARS";
+  costBasis?: "PER_PACKAGE" | "PER_LITER" | "PER_KG";
   packageSize?: string;
   packageUnit?: Unit;
   effectiveDate?: string;
   density?: string;
   baseUnit: Unit;
+  /** Código (en el propio sistema de origen) del envase de Parte B que acompaña a este
+   * envase de Base, cuando el origen lo declara (ej. columna "Codigo Parte B" SAP). */
+  linkedPartBCode?: string;
 }
 
 export interface CostMasterParseOutcome {

@@ -215,19 +215,20 @@ export const api = {
         "/imports/formulas/commit",
         { method: "POST", body: JSON.stringify({ batchId }) }
       ),
-    previewCosts: (files: File[], templates: Record<string, unknown>) => {
+    previewCosts: (files: File[], templates: Record<string, unknown>, sapCostSources: Record<string, "CKM3_USD_LTR" | "COSTO_UNIDAD"> = {}) => {
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
       fd.append("templates", JSON.stringify(templates));
+      fd.append("sapCostSources", JSON.stringify(sapCostSources));
       return req<{
         batchId: string;
         files: { fileName: string; classification: "OK" | "NEEDS_MAPPING" | "FAILED"; suggestedHeaders?: { headerRow: number; headers: string[] }; errors: { message: string }[]; warnings: { message: string }[] }[];
-        rows: { code: string; description: string; type: string; classification: string; reason?: string; amount: string; currency: string }[];
-        totals: { new: number; updated: number; unchanged: number; rejected: number };
+        rows: { code: string; description: string; type: string; classification: "NEW" | "UPDATED" | "UNCHANGED" | "REJECTED" | "NO_COST"; reason?: string; amount?: string; currency?: string }[];
+        totals: { new: number; updated: number; unchanged: number; rejected: number; noCost: number };
       }>("/imports/costs/preview", { method: "POST", body: fd });
     },
     commitCosts: (batchId: string, versionLabel: string) =>
-      req<{ importBatchId: string; imported: number; skippedDuplicates: number; rejected: number; errorCount: number; warningCount: number; new: number; updated: number; unchanged: number }>(
+      req<{ importBatchId: string; imported: number; skippedDuplicates: number; rejected: number; errorCount: number; warningCount: number; new: number; updated: number; unchanged: number; noCost: number }>(
         "/imports/costs/commit",
         { method: "POST", body: JSON.stringify({ batchId, versionLabel }) }
       ),

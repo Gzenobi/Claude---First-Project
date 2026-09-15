@@ -140,6 +140,7 @@ export function parseCostMasterSheet(
       code,
       description,
       type,
+      hasCost: true,
       amount: String(amount),
       currency: currencyRaw as CurrencyCode,
       costBasis,

@@ -175,24 +175,24 @@ export function ImportFormulas() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-dark uppercase border-b border-(--border-subtle)">
-                <th className="py-1.5">Archivo</th>
-                <th className="py-1.5">Estado</th>
-                <th className="py-1.5">Colores</th>
-                <th className="py-1.5">Errores</th>
+                <th className="py-1.5 pr-4">Archivo</th>
+                <th className="py-1.5 pr-4">Estado</th>
+                <th className="py-1.5 pr-4">Colores</th>
+                <th className="py-1.5 pr-4">Errores</th>
                 <th className="py-1.5">Advertencias</th>
               </tr>
             </thead>
             <tbody>
               {preview.files.map((f) => (
                 <tr key={f.fileName} className="border-b border-(--border-subtle) last:border-0 align-top">
-                  <td className="py-1.5">{f.fileName}</td>
-                  <td className="py-1.5">
+                  <td className="py-1.5 pr-4 whitespace-nowrap">{f.fileName}</td>
+                  <td className="py-1.5 pr-4">
                     {f.classification === "OK" && <span className="badge badge-ok">Listo</span>}
                     {f.classification === "NEEDS_MAPPING" && <span className="badge badge-warning">Requiere mapeo</span>}
                     {f.classification === "FAILED" && <span className="badge badge-error">Falló</span>}
                   </td>
-                  <td className="py-1.5">{f.colorCodes.join(", ") || "—"}</td>
-                  <td className="py-1.5 text-fuchsia text-xs">{f.errors.map((e) => e.message).join(" ")}</td>
+                  <td className="py-1.5 pr-4">{f.colorCodes.join(", ") || "—"}</td>
+                  <td className="py-1.5 pr-4 text-fuchsia text-xs">{f.errors.map((e) => e.message).join(" ")}</td>
                   <td className="py-1.5 text-xs text-[#92650a]">{f.warnings.map((w) => w.message).join(" ")}</td>
                 </tr>
               ))}

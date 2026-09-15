@@ -26,10 +26,36 @@ export function parseWorkbook(fileName: string, buffer: Buffer): ParsedWorkbook 
   }
   const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
     const ws = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Row>(ws, { header: 1, raw: true, defval: null });
+    const trimmedRange = actualUsedRange(ws);
+    const rows = XLSX.utils.sheet_to_json<Row>(ws, { header: 1, raw: true, defval: null, range: trimmedRange });
     return { sheetName, rows };
   });
   return { fileName, sheets };
+}
+
+/**
+ * Algunos exportadores de Excel declaran un `!ref` inflado (ej. hasta la fila
+ * 1.048.575) aunque los datos reales ocupen solo unas pocas decenas de filas
+ * — leer ese rango completo con `sheet_to_json` materializaría millones de
+ * celdas vacías. Se recalcula el rango real a partir de las celdas con datos.
+ */
+function actualUsedRange(ws: XLSX.WorkSheet): { s: { r: number; c: number }; e: { r: number; c: number } } | undefined {
+  let maxRow = -1;
+  let minRow = Infinity;
+  let minCol = Infinity;
+  let maxCol = -1;
+  for (const key of Object.keys(ws)) {
+    if (key.startsWith("!")) continue;
+    const cell = ws[key] as XLSX.CellObject;
+    if (cell.v === undefined || cell.v === null || cell.v === "") continue;
+    const addr = XLSX.utils.decode_cell(key);
+    if (addr.r > maxRow) maxRow = addr.r;
+    if (addr.r < minRow) minRow = addr.r;
+    if (addr.c > maxCol) maxCol = addr.c;
+    if (addr.c < minCol) minCol = addr.c;
+  }
+  if (maxRow === -1) return undefined; // hoja vacía: dejar que XLSX use el rango declarado
+  return { s: { r: minRow, c: minCol }, e: { r: maxRow, c: maxCol } };
 }
 
 export function cellText(cell: Cell): string {

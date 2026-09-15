@@ -72,6 +72,14 @@ model Component {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Vínculo Base -> Parte B "de kit": cuando la planilla maestra de costos
+  // declara qué envase de Parte B acompaña a este envase de Base (ej. columna
+  // "Codigo Parte B" del maestro SAP), se usa como el envase completo de
+  // Parte B a aplicar por conjunto — más preciso que asumir un ratio fijo.
+  linkedPartBComponentId String?
+  linkedPartBComponent   Component?  @relation("BaseToPartB", fields: [linkedPartBComponentId], references: [id])
+  basesUsingThisAsPartB  Component[] @relation("BaseToPartB")
+
   costs             ComponentCost[]
   formulaComponents FormulaComponent[]
   partBOf           ProductPartB[]
