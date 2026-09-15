@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { getFormulaBreakdown } from "../services/FormulaService.js";
 import { priceFromCost } from "../services/PricingService.js";
+import { fmtTotal, fmtUnitCost, fmtPct } from "../lib/exportFormat.js";
 
 export const calculationsRouter = Router();
 
@@ -225,14 +226,14 @@ calculationsRouter.get(
       "Código Color": c.color.code,
       Tipo: c.product.kind,
       "Tamaño Conjunto": `${c.formula.commercialVolume.toString()} ${c.formula.commercialVolumeUnit}`,
-      "Costo Base": c.baseCost.toString(),
-      "Costo Concentrados": c.concentrateCost.toString(),
-      "Costo Parte B": c.partBCost.toString(),
-      "Costo Total": c.totalCostPerSet.toString(),
-      "Costo/L": c.costPerLiter?.toString() ?? "",
-      "Contribución": c.contributionPct.toString(),
-      "Precio Sugerido/L": c.sellingPricePerLiter?.toString() ?? "",
-      "Precio Sugerido/Conjunto": c.sellingPricePerSet.toString(),
+      "Costo Base": fmtTotal(c.baseCost),
+      "Costo Concentrados": fmtTotal(c.concentrateCost),
+      "Costo Parte B": fmtTotal(c.partBCost),
+      "Costo Total": fmtTotal(c.totalCostPerSet),
+      "Costo/L": fmtUnitCost(c.costPerLiter),
+      "Contribución": fmtPct(c.contributionPct),
+      "Precio Sugerido/L": fmtUnitCost(c.sellingPricePerLiter),
+      "Precio Sugerido/Conjunto": fmtTotal(c.sellingPricePerSet),
       Moneda: c.currency,
       "Fecha de Cálculo": c.createdAt.toISOString(),
     }));
@@ -284,14 +285,14 @@ calculationsRouter.get(
           c.color.code,
           c.product.kind,
           `${c.formula.commercialVolume.toString()} ${c.formula.commercialVolumeUnit}`,
-          c.baseCost.toString(),
-          c.concentrateCost.toString(),
-          c.partBCost.toString(),
-          c.totalCostPerSet.toString(),
-          c.costPerLiter?.toString() ?? "",
-          c.contributionPct.toString(),
-          c.sellingPricePerLiter?.toString() ?? "",
-          c.sellingPricePerSet.toString(),
+          fmtTotal(c.baseCost),
+          fmtTotal(c.concentrateCost),
+          fmtTotal(c.partBCost),
+          fmtTotal(c.totalCostPerSet),
+          fmtUnitCost(c.costPerLiter),
+          fmtPct(c.contributionPct),
+          fmtUnitCost(c.sellingPricePerLiter),
+          fmtTotal(c.sellingPricePerSet),
           c.currency,
           c.createdAt.toISOString(),
         ]
