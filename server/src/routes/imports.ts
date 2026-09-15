@@ -12,7 +12,11 @@ import {
 export const importsRouter = Router();
 
 const MAX_FILE_MB = 15;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_MB * 1024 * 1024 } });
+// Los archivos se suben en lotes desde el cliente (ver ImportFormulas.tsx) para
+// soportar importaciones masivas de cientos/miles de fórmulas con progreso
+// visible; cada request individual queda acotado, pero el límite de "files"
+// se deja holgado por si el cliente envía lotes más grandes.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_MB * 1024 * 1024, files: 500 } });
 
 importsRouter.post(
   "/formulas/preview",
@@ -24,9 +28,11 @@ importsRouter.post(
       return;
     }
     const templates = req.body.templates ? JSON.parse(req.body.templates) : {};
+    const defaultTemplate = req.body.defaultTemplate ? JSON.parse(req.body.defaultTemplate) : undefined;
     const preview = await previewFormulaImport(
       files.map((f) => ({ name: f.originalname, buffer: f.buffer })),
-      templates
+      templates,
+      defaultTemplate
     );
     res.json(preview);
   })

@@ -64,7 +64,8 @@ export interface FormulaImportPreview {
  */
 export async function previewFormulaImport(
   files: { name: string; buffer: Buffer }[],
-  templates: Record<string, FormulaColumnTemplate>
+  templates: Record<string, FormulaColumnTemplate>,
+  defaultTemplate?: FormulaColumnTemplate
 ): Promise<FormulaImportPreview> {
   const batchId = randomUUID();
   const batchFiles: PendingFormulaBatch["files"] = [];
@@ -80,12 +81,16 @@ export async function previewFormulaImport(
       let classification: FileClassification = "OK";
       let suggestedHeaders: { headerRow: number; headers: string[] } | undefined;
 
+      const template = templates[file.name] ?? defaultTemplate;
       if (detectChromascan(sheet)) {
         const outcome = parseChromascanSheet(file.name, sheet);
         formulas = outcome.formulas;
         issues = outcome.issues;
-      } else if (templates[file.name]) {
-        const outcome = parseGenericFormulaSheet(file.name, sheet, templates[file.name]);
+      } else if (template) {
+        // La misma plantilla mapeada una vez se reaplica a todos los archivos
+        // del lote que compartan estructura (importación masiva de cientos
+        // de fórmulas con el mismo formato de origen, distinto nombre de archivo).
+        const outcome = parseGenericFormulaSheet(file.name, sheet, template);
         formulas = outcome.formulas;
         issues = outcome.issues;
       } else {

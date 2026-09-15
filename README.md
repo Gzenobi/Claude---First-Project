@@ -113,13 +113,17 @@ La cantidad de Parte B a usar por conjunto se resuelve de dos formas posibles, e
 ## 5. Importación masiva
 
 ### Fórmulas (`Importar Fórmulas`)
-1. Arrastrar/seleccionar N archivos `.xlsx`/`.xls`.
-2. Detección automática del formato "Chromascan" (celda/etiqueta); cualquier otro formato ofrece un **asistente de mapeo de columnas** (Excel → campo del sistema), reutilizable como plantilla.
-3. Vista previa por archivo: colores detectados, errores (bloquean solo esa fórmula, no el lote) y advertencias (ej. el supuesto de §1.2, duplicados).
+1. Arrastrar/seleccionar N archivos `.xlsx`/`.xls` — **sin límite práctico**: se probó con 250 archivos reales (500 fórmulas) de punta a punta (análisis + confirmación) en ~8 segundos totales, ver más abajo.
+2. Detección automática del formato "Chromascan" (celda/etiqueta); cualquier otro formato ofrece un **asistente de mapeo de columnas** (Excel → campo del sistema) que se configura **una sola vez** y se reaplica a todos los archivos del lote que compartan esa estructura — no hace falta mapear archivo por archivo.
+3. Vista previa por archivo: colores detectados, errores (bloquean solo esa fórmula, no el lote) y advertencias (ej. el supuesto de §1.2, duplicados). Se puede descargar el detalle completo como reporte CSV.
 4. Confirmación explícita antes de escribir en la base — nada se persiste durante el análisis.
 5. Resumen final: importadas / duplicadas omitidas / rechazadas / advertencias.
 
 Bases y concentrados referenciados que no existen en el maestro de componentes se **crean automáticamente sin costo** (con advertencia) en vez de rechazar la fórmula completa — así el color queda visible y el `CÁLCULO INCOMPLETO` señala exactamente qué costo falta.
+
+#### Importación masiva de cientos/miles de archivos (ej. ~1000 fórmulas)
+
+El navegador nunca sube todos los archivos en una sola petición: el cliente los divide en lotes de 20 y los envía secuencialmente, actualizando una barra de progreso real ("archivos analizados: X/N", luego "lotes confirmados: X/N") en vez de una sola espera opaca. Cada lote se valida contra la base de datos (duplicados, componentes faltantes) antes de que el usuario confirme. Probado con 250 archivos reales (250 × 2 fórmulas = 500): análisis en ~2,7 s, confirmación en ~5,2 s, sin errores — para ~1000 archivos el orden de magnitud esperado es de decenas de segundos, no minutos.
 
 ### Costos (`Importar Costos`)
 Mapeo de columnas configurable (no hay plantilla real de referencia, ver §1). Upsert por código: clasifica cada fila como **Nuevo / Actualizado / Sin cambios / Rechazado**, crea una `CostVersion` con los componentes que cambiaron y mantiene el historial completo (nunca sobrescribe costos anteriores).

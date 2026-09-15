@@ -192,10 +192,11 @@ export const api = {
     exportUrl: (format: "xlsx" | "csv") => `${BASE}/calculations/export/${format}`,
   },
   imports: {
-    previewFormulas: (files: File[], templates: Record<string, unknown>) => {
+    previewFormulas: (files: File[], templates: Record<string, unknown>, defaultTemplate?: unknown) => {
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
       fd.append("templates", JSON.stringify(templates));
+      if (defaultTemplate) fd.append("defaultTemplate", JSON.stringify(defaultTemplate));
       return req<{
         batchId: string;
         files: {
