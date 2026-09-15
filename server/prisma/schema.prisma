@@ -1,0 +1,276 @@
+// Calculadora de Costos de Colores — Data Model
+// Diseño relacional y flexible: una fórmula puede tener 1..N concentrados
+// (ver FormulaComponent), nunca columnas Concentrado1/2/3.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // SQLite para desarrollo local. El esquema evita features SQLite-only
+  // (usa String en vez de enums nativos, Decimal como String) para poder
+  // migrar a PostgreSQL cambiando solo `provider` + tipos Decimal nativos.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums (documentados como comentario porque SQLite no soporta enum nativo;
+// Zod valida estos valores en la capa de servicio)
+// ---------------------------------------------------------------------------
+// ProductKind:    ONE_K | TWO_K
+// ComponentType:  BASE | CONCENTRATE | PART_B
+// Unit:           L | ML | KG | G
+// Currency:       USD | EUR | ARS
+// CostBasis:      PER_PACKAGE | PER_LITER | PER_KG
+// FormulaRole:    BASE | CONCENTRATE | PART_B
+// ImportType:     COST_MASTER | FORMULAS
+// ImportStatus:   PREVIEW | COMMITTED | FAILED
+// ImportSeverity: ERROR | WARNING
+
+model Product {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  kind        String // ProductKind
+  isDemo      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  colors      Color[]
+  partB       ProductPartB[]
+  calculations Calculation[]
+
+  @@index([kind])
+}
+
+model Color {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  code        String
+  name        String?
+  standard    String? // referencia de estándar de color (ej. RAL 9001), llamado "Padrao" en archivos Chromascan
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  formulas    Formula[]
+  calculations Calculation[]
+
+  @@unique([productId, code])
+}
+
+// Maestro de componentes: bases, concentrados y partes B
+model Component {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String
+  type        String // ComponentType
+  baseUnit    String // Unit — unidad "natural" del componente (para conversión ml<->L, g<->kg)
+  density     Decimal? // kg/L — SOLO si fue provisto explícitamente, nunca inventado
+  isDemo      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  costs             ComponentCost[]
+  formulaComponents FormulaComponent[]
+  partBOf           ProductPartB[]
+
+  @@index([type])
+}
+
+// Cada importación de la planilla maestra de costos crea una nueva versión
+model CostVersion {
+  id             String   @id @default(cuid())
+  label          String
+  importBatchId  String?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id])
+  createdAt      DateTime @default(now())
+
+  componentCosts ComponentCost[]
+  calculationItems CalculationItem[]
+}
+
+// Costo de un componente en una versión específica (histórico, inmutable)
+model ComponentCost {
+  id             String   @id @default(cuid())
+  componentId    String
+  component      Component   @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  costVersionId  String
+  costVersion    CostVersion @relation(fields: [costVersionId], references: [id], onDelete: Cascade)
+
+  amount         Decimal  // valor del costo tal cual importado
+  currency       String   // Currency
+  costBasis      String   // CostBasis: PER_PACKAGE | PER_LITER | PER_KG
+  packageSize    Decimal? // requerido si costBasis = PER_PACKAGE
+  packageUnit    String?  // Unit, requerido si costBasis = PER_PACKAGE
+  effectiveDate  DateTime? // fecha de actualización declarada en el Excel
+  isCurrent      Boolean  @default(true) // true = último costo vigente para ese componente
+  createdAt      DateTime @default(now())
+
+  calculationItems CalculationItem[]
+
+  @@index([componentId, isCurrent])
+}
+
+model Formula {
+  id                    String   @id @default(cuid())
+  colorId               String
+  color                 Color    @relation(fields: [colorId], references: [id], onDelete: Cascade)
+  version               String?  // versión/fecha de fórmula declarada en el Excel
+  batchVolume           Decimal  // volumen final de la mezcla (Parte A) tal como sale de la fórmula
+  batchVolumeUnit       String   // Unit
+  commercialVolume      Decimal  // volumen comercial declarado del conjunto (envase que se vende)
+  commercialVolumeUnit  String   // Unit
+  baseQuantityBasis     String   @default("EXPLICIT") // "EXPLICIT" | "FILL_TO_VOLUME" (ver ValidationService: FILL_TO_VOLUME es un supuesto, se marca isIncomplete/advertencia)
+  isDemo                Boolean  @default(false)
+  sourceImportBatchId   String?
+  importBatch           ImportBatch? @relation(fields: [sourceImportBatchId], references: [id])
+  sourceFileName        String? // trazabilidad: archivo Excel de origen
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  components  FormulaComponent[]
+  calculations Calculation[]
+}
+
+model FormulaComponent {
+  id          String   @id @default(cuid())
+  formulaId   String
+  formula     Formula   @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id])
+  role        String   // FormulaRole: BASE | CONCENTRATE
+  quantity    Decimal
+  unit        String   // Unit
+  sortOrder   Int      @default(0)
+
+  @@index([formulaId])
+}
+
+// Asociación de Parte B a un producto 2K, con su ratio de mezcla configurable
+model ProductPartB {
+  id               String   @id @default(cuid())
+  productId        String
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  componentId      String
+  component        Component @relation(fields: [componentId], references: [id])
+  mixRatioA        Decimal? // partes de A
+  mixRatioB        Decimal? // partes de B (ej. 4:1 -> mixRatioA=4, mixRatioB=1)
+  quantityPerSet   Decimal? // alternativa directa: cantidad de Parte B usada por conjunto
+  quantityUnit     String?  // Unit, requerido si quantityPerSet está definido
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// Encabezado de un cálculo agregado a la "Lista de Costos"
+model Calculation {
+  id                    String   @id @default(cuid())
+  productId             String
+  product               Product  @relation(fields: [productId], references: [id])
+  colorId               String
+  color                 Color    @relation(fields: [colorId], references: [id])
+  formulaId             String
+  formula               Formula  @relation(fields: [formulaId], references: [id])
+
+  contributionPct       Decimal  // margen de contribución usado, ej 0.50
+  currency              String   // Currency
+
+  baseCost              Decimal
+  concentrateCost       Decimal
+  partBCost             Decimal
+  totalCostPerSet       Decimal
+  setSizeLiters         Decimal? // null si no pudo determinarse (unidades incompatibles)
+  costPerLiter          Decimal?
+  sellingPricePerLiter  Decimal?
+  sellingPricePerSet    Decimal
+
+  isIncomplete          Boolean  @default(false)
+  incompleteReason       String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  items                 CalculationItem[]
+}
+
+// Snapshot inmutable de cada componente usado en un cálculo (trazabilidad)
+model CalculationItem {
+  id              String   @id @default(cuid())
+  calculationId   String
+  calculation     Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  componentId     String
+  role            String   // FormulaRole
+  description     String
+  quantity        Decimal
+  unit            String   // Unit
+  unitCost        Decimal? // costo por unidad aplicado (null si faltaba costo)
+  appliedCost     Decimal  // quantity * unitCost convertido a currency del cálculo (0 si faltaba)
+  currency        String
+  costVersionId   String?
+  costVersion     CostVersion? @relation(fields: [costVersionId], references: [id])
+  componentCostId String?
+  componentCost   ComponentCost? @relation(fields: [componentCostId], references: [id])
+}
+
+model ImportBatch {
+  id           String   @id @default(cuid())
+  type         String   // ImportType: COST_MASTER | FORMULAS
+  status       String   // ImportStatus
+  fileNames    String   // JSON string[]
+  summaryJson  String?  // JSON resumen (nuevos/actualizados/sin cambios/rechazados)
+  templateId   String?
+  template     ImportTemplate? @relation(fields: [templateId], references: [id])
+  createdAt    DateTime @default(now())
+  committedAt  DateTime?
+
+  errors       ImportError[]
+  costVersions CostVersion[]
+  formulas     Formula[]
+}
+
+model ImportError {
+  id            String   @id @default(cuid())
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  fileName      String
+  rowRef        String?
+  severity      String   // ImportSeverity: ERROR | WARNING
+  message       String
+  rawDataJson   String?
+  createdAt     DateTime @default(now())
+}
+
+model ImportTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  type        String   // COST_MASTER | FORMULA_COLUMNS | FORMULA_CELLS
+  mappingJson String   // JSON: columna/celda -> campo del sistema
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  importBatches ImportBatch[]
+}
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal
+  asOfDate     DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([fromCurrency, toCurrency])
+}
+
+model Setting {
+  id                     Int      @id @default(1)
+  defaultContributionPct Decimal  @default(0.50)
+  mainCurrency           String   @default("USD")
+  qtyDecimals            Int      @default(4)
+  unitCostDecimals       Int      @default(4)
+  totalDecimals          Int      @default(2)
+  maxFileSizeMb          Int      @default(15)
+  updatedAt              DateTime @updatedAt
+}
