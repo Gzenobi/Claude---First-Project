@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, type Product, type ColorSummary, type ComponentRow } from "../api";
+import { api, type Product, type ColorSummary } from "../api";
 
 export function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selected, setSelected] = useState<Product | null>(null);
   const [colors, setColors] = useState<ColorSummary[]>([]);
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ code: "", name: "", kind: "ONE_K" });
-  const [partBComponents, setPartBComponents] = useState<ComponentRow[]>([]);
-  const [partBForm, setPartBForm] = useState({ componentId: "", mixRatioA: "4", mixRatioB: "1" });
+  const [form, setForm] = useState({ code: "", name: "" });
 
   function load() {
     api.products.list().then(setProducts);
@@ -16,32 +14,17 @@ export function Products() {
   useEffect(load, []);
   useEffect(() => {
     if (selected) api.products.colors(selected.id).then(setColors);
-    if (selected?.kind === "TWO_K") api.components.list("PART_B").then(setPartBComponents);
   }, [selected]);
 
   async function createProduct() {
     if (!form.code || !form.name) return;
-    await api.products.create(form);
-    setForm({ code: "", name: "", kind: "ONE_K" });
+    // La clasificación 1K/2K se infiere sola al cargar la primera fórmula
+    // (vía el vínculo Base->Parte B del maestro de costos), no se pide acá.
+    // Se arranca en 1K porque la inferencia solo sube a 2K, nunca baja.
+    await api.products.create({ ...form, kind: "ONE_K" });
+    setForm({ code: "", name: "" });
     setShowNew(false);
     load();
-  }
-
-  async function changeKind(kind: string) {
-    if (!selected) return;
-    await api.products.update(selected.id, { kind });
-    setSelected({ ...selected, kind: kind as Product["kind"], kindLocked: true });
-    load();
-  }
-
-  async function addPartB() {
-    if (!selected || !partBForm.componentId) return;
-    await fetch(`/api/products/${selected.id}/part-b`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(partBForm),
-    });
-    setPartBForm({ componentId: "", mixRatioA: "4", mixRatioB: "1" });
   }
 
   return (
@@ -49,7 +32,7 @@ export function Products() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-navy">Productos</h1>
-          <p className="text-sm text-gray-dark mt-1">Materiales (ej. Interthane 990, Interseal 670HS), su clasificación 1K/2K y Parte B.</p>
+          <p className="text-sm text-gray-dark mt-1">Materiales (ej. Interthane 990, Interseal 670HS) y sus colores.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowNew((s) => !s)}>
           + Nuevo Producto
@@ -57,7 +40,7 @@ export function Products() {
       </div>
 
       {showNew && (
-        <div className="card p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+        <div className="card p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
           <div>
             <label className="text-xs text-gray-dark">Código</label>
             <input className="input w-full" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
@@ -65,13 +48,6 @@ export function Products() {
           <div>
             <label className="text-xs text-gray-dark">Nombre</label>
             <input className="input w-full" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div>
-            <label className="text-xs text-gray-dark">Tipo</label>
-            <select className="input w-full" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-              <option value="ONE_K">1K</option>
-              <option value="TWO_K">2K</option>
-            </select>
           </div>
           <button className="btn-primary" onClick={createProduct}>
             Guardar
@@ -91,7 +67,6 @@ export function Products() {
                 <div className="font-medium">{p.name}</div>
                 <div className="text-xs text-gray-dark flex gap-2">
                   <span>{p.code}</span>
-                  <span className="badge badge-ok">{p.kind}</span>
                   <span>{p.colorCount} color(es)</span>
                 </div>
               </button>
@@ -103,46 +78,9 @@ export function Products() {
           {selected ? (
             <>
               <div className="card p-5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
-                    <div className="text-sm text-gray-dark">{selected.code}</div>
-                  </div>
-                  <div className="text-right">
-                    <select className="input" value={selected.kind} onChange={(e) => changeKind(e.target.value)}>
-                      <option value="ONE_K">1K</option>
-                      <option value="TWO_K">2K</option>
-                    </select>
-                    <div className="text-[11px] text-gray-dark mt-1">
-                      {selected.kindLocked ? "Fijado manualmente" : "Detectado automáticamente (columna A/B/M)"}
-                    </div>
-                  </div>
-                </div>
+                <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
+                <div className="text-sm text-gray-dark">{selected.code}</div>
               </div>
-
-              {selected.kind === "TWO_K" && (
-                <div className="card p-5">
-                  <h3 className="font-semibold text-navy mb-2">Parte B</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    <select className="input" value={partBForm.componentId} onChange={(e) => setPartBForm({ ...partBForm, componentId: e.target.value })}>
-                      <option value="">Seleccione componente Parte B...</option>
-                      {partBComponents.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} — {c.description}
-                        </option>
-                      ))}
-                    </select>
-                    <input className="input" placeholder="Ratio A" value={partBForm.mixRatioA} onChange={(e) => setPartBForm({ ...partBForm, mixRatioA: e.target.value })} />
-                    <input className="input" placeholder="Ratio B" value={partBForm.mixRatioB} onChange={(e) => setPartBForm({ ...partBForm, mixRatioB: e.target.value })} />
-                  </div>
-                  <button className="btn-secondary mt-2" onClick={addPartB}>
-                    Asociar Parte B
-                  </button>
-                  <p className="text-xs text-gray-dark mt-2">
-                    El ratio de mezcla es configurable por producto (ej. 4:1 Parte A : Parte B); no se asume un valor fijo.
-                  </p>
-                </div>
-              )}
 
               <div className="card p-5">
                 <h3 className="font-semibold text-navy mb-2">Colores ({colors.length})</h3>
