@@ -524,6 +524,7 @@ export async function commitCostImport(
         packageUnit: row.packageUnit,
         effectiveDate: row.effectiveDate ? new Date(row.effectiveDate) : undefined,
         isCurrent: true,
+        sapCode: row.sapCode,
       },
     });
 

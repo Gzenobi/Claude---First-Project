@@ -57,6 +57,9 @@ export interface ParsedComponentCostRow {
   /** Código (en el propio sistema de origen) del envase de Parte B que acompaña a este
    * envase de Base, cuando el origen lo declara (ej. columna "Codigo Parte B" SAP). */
   linkedPartBCode?: string;
+  /** Código del sistema de origen (ej. SAP) del envase específico que produjo este costo,
+   * cuando el código del componente (`code`) es un identificador distinto (ej. "CODIGO IP"). */
+  sapCode?: string;
 }
 
 export interface CostMasterParseOutcome {

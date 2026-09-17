@@ -114,6 +114,7 @@ model ComponentCost {
   packageUnit    String?  // Unit, requerido si costBasis = PER_PACKAGE
   effectiveDate  DateTime? // fecha de actualización declarada en el Excel
   isCurrent      Boolean  @default(true) // true = último costo vigente para ese componente
+  sapCode        String? // código del sistema de origen (ej. SAP) del envase específico que originó este costo, para trazabilidad — puede haber más de un código SAP por Component cuando varios envases comparten el mismo "código IP" usado en las fórmulas
   createdAt      DateTime @default(now())
 
   calculationItems CalculationItem[]

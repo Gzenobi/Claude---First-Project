@@ -45,7 +45,7 @@ describe("sapCostMasterParser sobre el maestro de costos real", () => {
 
     const noCostRows = outcome.rows.filter((r) => !r.hasCost);
     expect(noCostRows.length).toBeGreaterThan(0);
-    expect(outcome.issues.some((i) => i.severity === "WARNING" && i.message.includes("SIN COSTO"))).toBe(true);
+    expect(outcome.issues.some((i) => i.severity === "WARNING" && i.message.includes("sin costo"))).toBe(true);
   });
 
   it("con costSource COSTO_UNIDAD usa costBasis PER_PACKAGE y la moneda declarada", () => {
