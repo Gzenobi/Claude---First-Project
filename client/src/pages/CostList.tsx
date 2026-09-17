@@ -130,8 +130,8 @@ export function CostList() {
                 </td>
                 <td className="py-2 px-3">{c.product.kind}</td>
                 <td className="py-2 px-3">{c.setSize}</td>
-                <td className="py-2 px-3 text-right">${money(c.totalCostPerSet)}</td>
-                <td className="py-2 px-3 text-right">{c.costPerLiter ? `$${money(c.costPerLiter, 4)}` : "—"}</td>
+                <td className="py-2 px-3 text-right">{money(c.totalCostPerSet)}</td>
+                <td className="py-2 px-3 text-right">{c.costPerLiter ? `${money(c.costPerLiter)}` : "—"}</td>
                 <td className="py-2 px-3 text-right">
                   {editingId === c.id ? (
                     <input
@@ -148,8 +148,8 @@ export function CostList() {
                     </button>
                   )}
                 </td>
-                <td className="py-2 px-3 text-right">{c.sellingPricePerLiter ? `$${money(c.sellingPricePerLiter, 4)}` : "—"}</td>
-                <td className="py-2 px-3 text-right font-semibold">${money(c.sellingPricePerSet)}</td>
+                <td className="py-2 px-3 text-right">{c.sellingPricePerLiter ? `${money(c.sellingPricePerLiter)}` : "—"}</td>
+                <td className="py-2 px-3 text-right font-semibold">{money(c.sellingPricePerSet)}</td>
                 <td className="py-2 px-3">
                   {c.isIncomplete ? <span className="badge badge-error">Incompleto</span> : <span className="badge badge-ok">OK</span>}
                 </td>

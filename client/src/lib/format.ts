@@ -1,8 +1,13 @@
+// La app opera en una única moneda (USD); se lo indicamos siempre en el
+// número para que nunca quede ambiguo si un monto es USD o AR$/otra.
+// Los montos se redondean siempre hacia arriba (nunca subestimar un costo).
 export function money(value: string | number | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
   if (Number.isNaN(n)) return "—";
-  return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const factor = 10 ** decimals;
+  const rounded = Math.ceil(n * factor) / factor;
+  return `USD ${rounded.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
 export function qty(value: string | number | null | undefined, decimals = 4): string {

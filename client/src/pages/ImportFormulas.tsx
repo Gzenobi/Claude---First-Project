@@ -239,7 +239,7 @@ export function ImportFormulas() {
             {globalMapping ? (
               <span className="badge badge-ok">Configurado</span>
             ) : (
-              <span className="badge" style={{ background: "#eef1f5", color: "#5b6b7a" }}>
+              <span className="badge" style={{ background: "var(--bg-app)", color: "var(--text-secondary)" }}>
                 Sin configurar (se pedirá si hace falta)
               </span>
             )}
@@ -261,7 +261,7 @@ export function ImportFormulas() {
       )}
 
       {needsMapping.length > 0 && (
-        <div className="card p-4 border-l-4 border-l-[#c9950b]">
+        <div className="card p-4 border-l-4 border-l-violet">
           <h3 className="font-semibold mb-2">
             {needsMapping.length} archivo(s) no reconocidos automáticamente — configure el mapeo de columnas y vuelva a analizar
           </h3>
@@ -315,7 +315,7 @@ export function ImportFormulas() {
                   </td>
                   <td className="py-1.5 pr-4">{f.colorCodes.join(", ") || "—"}</td>
                   <td className="py-1.5 pr-4 text-fuchsia text-xs">{f.errors.map((e) => e.message).join(" ")}</td>
-                  <td className="py-1.5 text-xs text-[#92650a]">{f.warnings.map((w) => w.message).join(" ")}</td>
+                  <td className="py-1.5 text-xs text-violet">{f.warnings.map((w) => w.message).join(" ")}</td>
                 </tr>
               ))}
             </tbody>
@@ -386,7 +386,7 @@ function MappingWizard({
           que no se detecten automáticamente como "Chromascan" — no hace falta repetirlo por archivo.
         </p>
         {headers.length === 0 && (
-          <p className="text-xs text-[#92650a] mb-3">
+          <p className="text-xs text-violet mb-3">
             Todavía no hay columnas detectadas: analice primero los archivos para que el sistema sugiera el header, o escriba los nombres
             de columna manualmente abajo.
           </p>

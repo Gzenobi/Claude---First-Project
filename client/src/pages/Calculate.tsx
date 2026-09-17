@@ -5,7 +5,8 @@ import { api, type Product, type ColorSummary, type FormulaSummary, type Pricing
 import { SearchableSelect } from "../components/SearchableSelect";
 import { money, qty, pct, roleLabel } from "../lib/format";
 
-const DONUT_COLORS = ["#005192", "#008BC5", "#A8269A"];
+// Secuencia de marca para gráficos categóricos: Navy -> Sky -> Purple.
+const DONUT_COLORS = ["#005192", "#008BC5", "#542C97"];
 
 export function Calculate() {
   const [params, setParams] = useSearchParams();
@@ -156,7 +157,7 @@ export function Calculate() {
             </div>
           )}
           {!breakdown.isIncomplete && breakdown.formulaWarnings.length > 0 && (
-            <div className="card p-4 border-l-4 border-l-[#c9950b] bg-[#fff6e0]/40">
+            <div className="card p-4 border-l-4 border-l-violet bg-violet/5">
               <div className="badge badge-warning mb-1">ADVERTENCIA</div>
               {breakdown.formulaWarnings.map((w, i) => (
                 <div key={i} className="text-sm text-gray-dark">
@@ -192,7 +193,7 @@ export function Calculate() {
                         <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number) => `$${money(v)}`} />
+                    <Tooltip formatter={(v: number) => `${money(v)}`} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -210,15 +211,15 @@ export function Calculate() {
 
             <div className="card p-5 space-y-2 text-sm">
               <h2 className="font-semibold text-navy mb-1">Resumen</h2>
-              <Row label="Costo Parte A (Base + Concentrados)" value={`$${money(Number(breakdown.baseCost) + Number(breakdown.concentrateCost))}`} />
-              {breakdown.productKind === "TWO_K" && <Row label="Costo Parte B" value={`$${money(breakdown.partBCost)}`} />}
-              <Row label="Costo Total / conjunto" value={`$${money(breakdown.totalCostPerSet)}`} bold />
-              <Row label="Costo / L" value={breakdown.costPerLiter ? `$${money(breakdown.costPerLiter, 4)}` : "—"} />
+              <Row label="Costo Parte A (Base + Concentrados)" value={`${money(Number(breakdown.baseCost) + Number(breakdown.concentrateCost))}`} />
+              {breakdown.productKind === "TWO_K" && <Row label="Costo Parte B" value={`${money(breakdown.partBCost)}`} />}
+              <Row label="Costo Total / conjunto" value={`${money(breakdown.totalCostPerSet)}`} bold />
+              <Row label="Costo / L" value={breakdown.costPerLiter ? `${money(breakdown.costPerLiter)}` : "—"} />
               {pricing?.pricing && (
                 <>
                   <hr className="my-2 border-(--border-subtle)" />
-                  <Row label="Precio sugerido / L" value={`$${money(pricing.pricing.sellingPricePerLiter, 4)}`} />
-                  <Row label="Precio sugerido / conjunto" value={`$${money(pricing.pricing.sellingPricePerSet)}`} bold />
+                  <Row label="Precio sugerido / L" value={`${money(pricing.pricing.sellingPricePerLiter)}`} />
+                  <Row label="Precio sugerido / conjunto" value={`${money(pricing.pricing.sellingPricePerSet)}`} bold />
                   <Row label="Contribución" value={pct(pricing.pricing.contributionPct)} />
                 </>
               )}
@@ -261,8 +262,8 @@ export function Calculate() {
                     return (
                       <tr key={s.contributionPct} className={isDefault ? "bg-sky/10 font-semibold" : ""}>
                         <td className="py-1.5">{pct(s.contributionPct)} {isDefault && <span className="text-sky">(default)</span>}</td>
-                        <td className="py-1.5">${money(s.sellingPrice)}</td>
-                        <td className="py-1.5">${money(s.profit)}</td>
+                        <td className="py-1.5">{money(s.sellingPrice)}</td>
+                        <td className="py-1.5">{money(s.profit)}</td>
                       </tr>
                     );
                   })}
@@ -313,8 +314,8 @@ function LinesTable({ lines }: { lines: PricingResponse["breakdown"]["lines"] })
             <td className="py-1.5 pr-4 text-right whitespace-nowrap">
               {qty(l.quantity)} {l.unit}
             </td>
-            <td className="py-1.5 pr-4 text-right whitespace-nowrap">{l.ok ? `$${money(l.unitCost, 4)}` : <span className="badge badge-error">{roleLabel(l.role)} sin costo</span>}</td>
-            <td className="py-1.5 text-right whitespace-nowrap">{l.ok ? `$${money(l.appliedCost)}` : "—"}</td>
+            <td className="py-1.5 pr-4 text-right whitespace-nowrap">{l.ok ? `${money(l.unitCost)}` : <span className="badge badge-error">{roleLabel(l.role)} sin costo</span>}</td>
+            <td className="py-1.5 text-right whitespace-nowrap">{l.ok ? `${money(l.appliedCost)}` : "—"}</td>
           </tr>
         ))}
       </tbody>

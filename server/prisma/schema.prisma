@@ -266,21 +266,9 @@ model ImportTemplate {
   importBatches ImportBatch[]
 }
 
-model ExchangeRate {
-  id           String   @id @default(cuid())
-  fromCurrency String
-  toCurrency   String
-  rate         Decimal
-  asOfDate     DateTime
-  createdAt    DateTime @default(now())
-
-  @@index([fromCurrency, toCurrency])
-}
-
 model Setting {
   id                     Int      @id @default(1)
   defaultContributionPct Decimal  @default(0.50)
-  mainCurrency           String   @default("USD")
   qtyDecimals            Int      @default(4)
   unitCostDecimals       Int      @default(4)
   totalDecimals          Int      @default(2)

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "../api";
+import { money } from "../lib/format";
 
 interface MappingState {
   code: string;
@@ -144,7 +145,7 @@ export function ImportCosts() {
       )}
 
       {needsMapping.length > 0 && (
-        <div className="card p-4 border-l-4 border-l-[#c9950b]">
+        <div className="card p-4 border-l-4 border-l-violet">
           <h3 className="font-semibold mb-2">Archivos que requieren mapeo de columnas</h3>
           {needsMapping.map((f) => (
             <div key={f.fileName} className="flex justify-between items-center py-1 text-sm">
@@ -192,19 +193,11 @@ export function ImportCosts() {
                   <td className="py-1.5 pr-4 font-mono text-xs whitespace-nowrap">{r.code}</td>
                   <td className="py-1.5 pr-4">{r.description}</td>
                   <td className="py-1.5 pr-4">{r.type}</td>
-                  <td className="py-1.5 pr-4 text-right whitespace-nowrap">
-                    {r.amount ? (
-                      <>
-                        {r.amount} {r.currency}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  <td className="py-1.5 pr-4 text-right whitespace-nowrap">{r.amount ? money(r.amount) : "—"}</td>
                   <td className="py-1.5">
                     {r.classification === "NEW" && <span className="badge badge-ok">Nuevo</span>}
                     {r.classification === "UPDATED" && <span className="badge badge-warning">Actualizado</span>}
-                    {r.classification === "UNCHANGED" && <span className="badge" style={{ background: "#eef1f5", color: "#5b6b7a" }}>Sin cambios</span>}
+                    {r.classification === "UNCHANGED" && <span className="badge" style={{ background: "var(--bg-app)", color: "var(--text-secondary)" }}>Sin cambios</span>}
                     {r.classification === "REJECTED" && <span className="badge badge-error">Rechazado</span>}
                     {r.classification === "NO_COST" && <span className="badge badge-error">Sin costo (origen)</span>}
                     {r.reason && <div className="text-xs text-gray-dark mt-0.5">{r.reason}</div>}

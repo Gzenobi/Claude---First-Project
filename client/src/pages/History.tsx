@@ -43,7 +43,7 @@ export function History() {
                 <td className="py-2 px-3 text-xs">{new Date(c.createdAt).toLocaleString("es-AR")}</td>
                 <td className="py-2 px-3">{c.product.name}</td>
                 <td className="py-2 px-3">{c.color.code}</td>
-                <td className="py-2 px-3 text-right">${money(c.totalCostPerSet)}</td>
+                <td className="py-2 px-3 text-right">{money(c.totalCostPerSet)}</td>
                 <td className="py-2 px-3">{pct(c.contributionPct)}</td>
                 <td className="py-2 px-3">
                   <button className="text-sky text-xs" onClick={() => openCompare(c.id)}>
@@ -74,8 +74,8 @@ export function History() {
           <div className="grid grid-cols-2 gap-6 text-sm">
             <div>
               <div className="text-xs text-gray-dark uppercase mb-1">Costo original (histórico)</div>
-              <div className="text-xl font-bold text-navy">${money(compare.original.totalCostPerSet)}</div>
-              <div className="text-xs text-gray-dark">Costo/L: {compare.original.costPerLiter ? `$${money(compare.original.costPerLiter, 4)}` : "—"}</div>
+              <div className="text-xl font-bold text-navy">{money(compare.original.totalCostPerSet)}</div>
+              <div className="text-xs text-gray-dark">Costo/L: {compare.original.costPerLiter ? `${money(compare.original.costPerLiter)}` : "—"}</div>
             </div>
             <div>
               <div className="text-xs text-gray-dark uppercase mb-1">Costo actualizado (con costos vigentes)</div>
@@ -83,8 +83,8 @@ export function History() {
                 <div className="badge badge-error">Incompleto: {compare.current.incompleteReason}</div>
               ) : (
                 <>
-                  <div className="text-xl font-bold text-navy">${money(compare.current.totalCostPerSet)}</div>
-                  <div className="text-xs text-gray-dark">Costo/L: {compare.current.costPerLiter ? `$${money(compare.current.costPerLiter, 4)}` : "—"}</div>
+                  <div className="text-xl font-bold text-navy">{money(compare.current.totalCostPerSet)}</div>
+                  <div className="text-xs text-gray-dark">Costo/L: {compare.current.costPerLiter ? `${money(compare.current.costPerLiter)}` : "—"}</div>
                 </>
               )}
             </div>

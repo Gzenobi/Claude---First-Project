@@ -141,18 +141,10 @@ export interface SearchResults {
 }
 export interface Settings {
   defaultContributionPct: string;
-  mainCurrency: string;
   qtyDecimals: number;
   unitCostDecimals: number;
   totalDecimals: number;
   maxFileSizeMb: number;
-}
-export interface ExchangeRate {
-  id: string;
-  fromCurrency: string;
-  toCurrency: string;
-  rate: string;
-  asOfDate: string;
 }
 
 export const api = {
@@ -253,9 +245,6 @@ export const api = {
   settings: {
     get: () => req<Settings>("/settings"),
     update: (data: Partial<Settings>) => req<Settings>("/settings", { method: "PUT", body: JSON.stringify(data) }),
-    exchangeRates: () => req<ExchangeRate[]>("/settings/exchange-rates"),
-    addExchangeRate: (data: { fromCurrency: string; toCurrency: string; rate: string }) =>
-      req<ExchangeRate>("/settings/exchange-rates", { method: "POST", body: JSON.stringify(data) }),
   },
   search: (q: string) => req<SearchResults>(`/search?q=${encodeURIComponent(q)}`),
   dashboard: () => req<DashboardData>("/dashboard"),

@@ -12,11 +12,15 @@
   --color-sky-light: #a3ddf5;
   --color-purple-light: #a290c2;
   --color-ultramarine-light: #999ad4;
+  --color-fuchsia-light: #ffb3d4;
+  --color-violet-light: #d292cc;
 
   --color-gray-dark: #868688;
   --color-gray-light: #b7b9ba;
 
-  --font-sans: "Helvetica Neue", Arial, "Segoe UI", sans-serif;
+  /* Arial es la tipografía de marca para Office/HTML de uso interno; Helvetica
+     Neue queda reservada para piezas de marketing/diseño (ver skill de marca). */
+  --font-sans: Arial, "Helvetica Neue", "Segoe UI", sans-serif;
 }
 
 :root {
@@ -116,15 +120,17 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
 }
+/* Semáforo de marca (guía AkzoNobel): Sky = positivo, Violet = alerta,
+   Fuchsia = alerta fuerte/error — nunca verde/amarillo/rojo genéricos. */
 .badge-ok {
-  background: #e7f5ec;
-  color: #1e7b42;
+  background: var(--color-sky-light);
+  color: var(--color-navy);
 }
 .badge-warning {
-  background: #fff6e0;
-  color: #92650a;
+  background: var(--color-violet-light);
+  color: var(--color-violet);
 }
 .badge-error {
-  background: #fdeaee;
-  color: #b3223a;
+  background: var(--color-fuchsia-light);
+  color: var(--color-fuchsia);
 }

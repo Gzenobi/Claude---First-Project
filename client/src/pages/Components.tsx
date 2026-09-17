@@ -103,7 +103,7 @@ export function Components() {
                   <td className="py-2 px-3 text-right">
                     {c.currentCost ? (
                       <>
-                        ${money(c.currentCost.amount, 4)} {c.currentCost.currency}
+                        {money(c.currentCost.amount)}
                         {c.currentCost.costBasis === "PER_PACKAGE" && (
                           <span className="text-xs text-gray-dark"> /{c.currentCost.packageSize}{c.currentCost.packageUnit}</span>
                         )}
@@ -134,14 +134,6 @@ export function Components() {
                         <div>
                           <label className="text-xs text-gray-dark">Monto</label>
                           <input className="input w-28" value={costForm.amount} onChange={(e) => setCostForm({ ...costForm, amount: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-dark">Moneda</label>
-                          <select className="input" value={costForm.currency} onChange={(e) => setCostForm({ ...costForm, currency: e.target.value })}>
-                            <option>USD</option>
-                            <option>EUR</option>
-                            <option>ARS</option>
-                          </select>
                         </div>
                         <div>
                           <label className="text-xs text-gray-dark">Base de costo</label>
