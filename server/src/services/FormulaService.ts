@@ -18,7 +18,8 @@ const LARGE_FORMAT_THRESHOLD_L = new Decimal(10);
  */
 async function currentCostInput(
   componentId: string,
-  commercialVolumeL: Decimal | null
+  commercialVolumeL: Decimal | null,
+  checkSizeMatch: boolean = true
 ): Promise<{ input?: ComponentCostInput; componentCostId?: string; costVersionId?: string; sizeAmbiguityWarning?: string }> {
   const costs = await prisma.componentCost.findMany({
     where: { componentId, isCurrent: true },
@@ -37,6 +38,17 @@ async function currentCostInput(
     } else {
       sizeAmbiguityWarning = `Este componente tiene ${costs.length} costos vigentes simultáneos y no se pudo determinar cuál envase corresponde a este volumen comercial; se usó el más reciente.`;
       chosen = costs[0];
+    }
+  } else if (checkSizeMatch && chosen.packageSize && commercialVolumeL) {
+    // Único costo vigente: puede ser que el maestro de costos solo declare
+    // el envase de un formato (el otro suele venir "SIN COSTO" y por eso no
+    // llega a crear un ComponentCost — ver ImportService.commitCostImport).
+    // Avisamos en vez de aplicar en silencio el costo de un envase de
+    // formato claramente distinto al de esta fórmula.
+    const wantLarge = commercialVolumeL.gte(LARGE_FORMAT_THRESHOLD_L);
+    const availableIsLarge = chosen.packageSize.gte(LARGE_FORMAT_THRESHOLD_L);
+    if (wantLarge !== availableIsLarge) {
+      sizeAmbiguityWarning = `El único costo vigente de este componente corresponde a un envase de ${chosen.packageSize.toString()} ${chosen.packageUnit ?? ""} (formato ${availableIsLarge ? "grande" : "chico"}), distinto al formato de esta fórmula (${commercialVolumeL.toString()} L). Es posible que el maestro de costos no tenga cargado el costo del envase de este formato (revisar filas "SIN COSTO" en el origen). Se usó el único costo disponible como aproximación.`;
     }
   }
 
@@ -101,7 +113,11 @@ export async function getFormulaBreakdown(formulaId: string): Promise<FormulaBre
 
   const lines: (FormulaLineInput & { componentCostId?: string; costVersionId?: string })[] = [];
   for (const fc of formula.components) {
-    const { input, componentCostId, costVersionId, sizeAmbiguityWarning } = await currentCostInput(fc.componentId, commercialVolumeL);
+    const { input, componentCostId, costVersionId, sizeAmbiguityWarning } = await currentCostInput(
+      fc.componentId,
+      commercialVolumeL,
+      fc.role === "BASE"
+    );
     if (sizeAmbiguityWarning) sizeWarnings.push(`${fc.component.code}: ${sizeAmbiguityWarning}`);
     lines.push({
       componentId: fc.componentId,
