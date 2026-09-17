@@ -443,7 +443,11 @@ async function classifyCostRow(
     return { ...row, classification: "UPDATED", reason: `Tipo existente (${existing.type}) difiere del importado (${row.type}); se conserva el tipo existente.` };
   }
 
-  const current = existing.costs[0];
+  // Un componente puede tener más de un costo vigente simultáneo — uno por
+  // tamaño de envase (ver sapCostMasterParser.ts) — así que la comparación
+  // debe ser contra el costo existente del MISMO tamaño, no "el primero".
+  const rowPackageKey = row.packageSize ? new Decimal(row.packageSize).toString() : null;
+  const current = existing.costs.find((c) => (c.packageSize?.toString() ?? null) === rowPackageKey);
   if (!current) return { ...row, classification: "NEW" };
 
   const sameAmount = current.amount.toString() === new Decimal(row.amount!).toString();
@@ -512,7 +516,17 @@ export async function commitCostImport(
       continue; // se registra el componente en el maestro, pero no se crea/toca ningún costo
     }
 
-    await prisma.componentCost.updateMany({ where: { componentId: component.id, isCurrent: true }, data: { isCurrent: false } });
+    // Solo se invalida el costo vigente del MISMO tamaño de envase — un
+    // componente puede tener varios costos vigentes a la vez, uno por
+    // presentación (ver sapCostMasterParser.ts), y no deben pisarse entre sí.
+    await prisma.componentCost.updateMany({
+      where: {
+        componentId: component.id,
+        isCurrent: true,
+        packageSize: row.packageSize ? new Decimal(row.packageSize) : null,
+      },
+      data: { isCurrent: false },
+    });
     await prisma.componentCost.create({
       data: {
         componentId: component.id,

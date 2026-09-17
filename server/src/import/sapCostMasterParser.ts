@@ -26,15 +26,18 @@ import type { CurrencyCode } from "../lib/types.js";
  * vuelta al Código SAP (comportamiento anterior), para no romper archivos
  * que todavía no la incluyan.
  *
- * AMBIGÜEDAD REAL DETECTADA: un mismo CODIGO IP puede aparecer en más de
- * una fila SAP (distintos envases/tamaños de un mismo material, o incluso
- * dos filas con el mismo tamaño y costos distintos — visto en los datos
- * reales para GVA147). Como una fórmula de color no indica qué envase
- * físico se usó, no hay forma de saber cuál de esos costos es "el"
- * correcto sin más información: se elige uno de forma determinística
- * (mayor "Contenido" primero, con desempates documentados) y se informa
- * la elección + las alternativas descartadas como advertencia — nunca se
- * promedia ni se inventa un valor combinado.
+ * DOS ENVASES POR MATERIAL, NO UNA AMBIGÜEDAD (confirmado por el usuario):
+ * Base y Parte B vienen siempre en dos presentaciones — la mayor para el
+ * conjunto de 20 L, la menor para el de 3,6 L (ej. PHA100 en 15,08 L y
+ * 2,72 L; su Parte B vinculada PHA046 en 2,83 L y 0,51 L). No se colapsan
+ * a un único "costo vigente": se conserva un `ComponentCost` por tamaño, y
+ * `FormulaService` elige el que corresponde según el volumen comercial de
+ * la fórmula que se está costeando (ver §1.5/§1.6 del README).
+ *
+ * Lo que SÍ es una ambigüedad real y se resuelve con un desempate explícito
+ * (nunca promediando): dos filas SAP con el MISMO tamaño de envase y costos
+ * distintos para el mismo CODIGO IP — visto en los datos reales para
+ * GVA147 (dos entradas de 4 L con costos diferentes).
  */
 
 export type SapCostSource = "CKM3_USD_LTR" | "COSTO_UNIDAD";
@@ -179,81 +182,92 @@ export function parseSapCostMasterSheet(
       });
     }
 
-    // Elegir la fila "canónica" para el costo: primero las que sí tienen costo
-    // válido y no están SIN COSTO; entre ellas, mayor Contenido (envase más
-    // representativo); a igualdad, la última en aparecer en el archivo.
-    const withCost = group.filter((r) => r.estado !== "SIN COSTO" && r.amount !== null && (r.costBasis !== "PER_PACKAGE" || (r.contenido ?? 0) > 0));
-    const candidates = withCost.length > 0 ? withCost : group;
-    let canonical = candidates[0];
-    for (const r of candidates.slice(1)) {
-      const currentSize = canonical.contenido ?? -1;
-      const candidateSize = r.contenido ?? -1;
-      if (candidateSize >= currentSize) canonical = r; // >= : a igualdad de tamaño, gana la última del archivo
+    // Sub-agrupar por tamaño de envase: cada tamaño distinto es una
+    // presentación legítima (ver nota de cabecera), no una alternativa a
+    // descartar. Redondeado a 6 decimales para tolerar ruido de punto
+    // flotante; null (sin Contenido) es su propio grupo.
+    const sizeKey = (r: RawRow) => (r.contenido === null ? "∅" : r.contenido.toFixed(6));
+    const bySize = new Map<string, RawRow[]>();
+    for (const r of group) {
+      const key = sizeKey(r);
+      const list = bySize.get(key) ?? [];
+      list.push(r);
+      bySize.set(key, list);
     }
 
-    if (group.length > 1) {
-      const alternates = group
-        .filter((r) => r !== canonical)
-        .map((r) => `SAP ${r.sapCode} (${r.contenido ?? "?"}L, ${r.amount === null ? "sin costo" : `$${r.amount}`})`)
-        .join("; ");
-      issues.push({
-        fileName,
-        rowRef: code,
-        severity: "WARNING",
-        message: `${code} tiene ${group.length} envases distintos en el maestro de costos; se usó SAP ${canonical.sapCode} (${canonical.contenido ?? "?"}L). Alternativas no usadas: ${alternates}. Verifique cuál corresponde si el costo no parece correcto.`,
-      });
-    }
+    for (const sizeGroup of bySize.values()) {
+      // Dentro de un mismo tamaño, sí puede haber un conflicto real (mismo
+      // envase, costos distintos, ej. GVA147): se elige uno de forma
+      // determinística (con costo válido primero, luego el último del
+      // archivo) y se informan las alternativas descartadas.
+      const withCost = sizeGroup.filter((r) => r.estado !== "SIN COSTO" && r.amount !== null);
+      const candidates = withCost.length > 0 ? withCost : sizeGroup;
+      const canonical = candidates[candidates.length - 1];
 
-    const linkedPartBCode = canonical.partBSapCode ? sapToIp.get(canonical.partBSapCode) ?? canonical.partBSapCode : undefined;
-    if (canonical.partBSapCode && hasIpColumn && !sapToIp.has(canonical.partBSapCode)) {
-      issues.push({
-        fileName,
-        rowRef: code,
-        severity: "WARNING",
-        message: `No se encontró el código IP correspondiente al SAP de Parte B "${canonical.partBSapCode}" referenciado por ${code}; se usará el código SAP tal cual.`,
-      });
-    }
+      if (sizeGroup.length > 1) {
+        const alternates = sizeGroup
+          .filter((r) => r !== canonical)
+          .map((r) => `SAP ${r.sapCode} (${r.amount === null ? "sin costo" : `$${r.amount}`})`)
+          .join("; ");
+        issues.push({
+          fileName,
+          rowRef: code,
+          severity: "WARNING",
+          message: `${code} tiene ${sizeGroup.length} filas SAP con el mismo envase (${canonical.contenido ?? "?"}L) y costos que no coinciden; se usó SAP ${canonical.sapCode}. Alternativas no usadas: ${alternates}. Verifique cuál es correcta en el origen.`,
+        });
+      }
 
-    if (canonical.estado === "SIN COSTO" || canonical.amount === null) {
+      const linkedPartBCode = canonical.partBSapCode ? sapToIp.get(canonical.partBSapCode) ?? canonical.partBSapCode : undefined;
+      if (canonical.partBSapCode && hasIpColumn && !sapToIp.has(canonical.partBSapCode)) {
+        issues.push({
+          fileName,
+          rowRef: code,
+          severity: "WARNING",
+          message: `No se encontró el código IP correspondiente al SAP de Parte B "${canonical.partBSapCode}" referenciado por ${code}; se usará el código SAP tal cual.`,
+        });
+      }
+
+      if (canonical.estado === "SIN COSTO" || canonical.amount === null) {
+        parsed.push({
+          code,
+          description: canonical.description,
+          type,
+          hasCost: false,
+          baseUnit: "L",
+          packageSize: canonical.contenido !== null ? String(canonical.contenido) : undefined,
+          packageUnit: "L",
+          linkedPartBCode,
+          sapCode: canonical.sapCode,
+        });
+        issues.push({
+          fileName,
+          rowRef: code,
+          severity: "WARNING",
+          message: `"${canonical.description}" (${code}, envase ${canonical.contenido ?? "?"}L) figura sin costo utilizable en el origen: se registra sin costo (no se inventa un valor).`,
+        });
+        continue;
+      }
+
+      if (canonical.costBasis === "PER_PACKAGE" && (canonical.contenido === null || canonical.contenido <= 0)) {
+        issues.push({ fileName, rowRef: code, severity: "ERROR", message: `Falta "Contenido (L)" válido para calcular el costo por envase de ${canonical.description} (${code}).` });
+        continue;
+      }
+
       parsed.push({
         code,
         description: canonical.description,
         type,
-        hasCost: false,
-        baseUnit: "L",
+        hasCost: true,
+        amount: String(canonical.amount),
+        currency: canonical.currency,
+        costBasis: canonical.costBasis,
         packageSize: canonical.contenido !== null ? String(canonical.contenido) : undefined,
         packageUnit: "L",
+        baseUnit: "L",
         linkedPartBCode,
         sapCode: canonical.sapCode,
       });
-      issues.push({
-        fileName,
-        rowRef: code,
-        severity: "WARNING",
-        message: `"${canonical.description}" (${code}) figura sin costo utilizable en el origen: se registra el componente sin costo (no se inventa un valor).`,
-      });
-      continue;
     }
-
-    if (canonical.costBasis === "PER_PACKAGE" && (canonical.contenido === null || canonical.contenido <= 0)) {
-      issues.push({ fileName, rowRef: code, severity: "ERROR", message: `Falta "Contenido (L)" válido para calcular el costo por envase de ${canonical.description} (${code}).` });
-      continue;
-    }
-
-    parsed.push({
-      code,
-      description: canonical.description,
-      type,
-      hasCost: true,
-      amount: String(canonical.amount),
-      currency: canonical.currency,
-      costBasis: canonical.costBasis,
-      packageSize: canonical.contenido !== null ? String(canonical.contenido) : undefined,
-      packageUnit: "L",
-      baseUnit: "L",
-      linkedPartBCode,
-      sapCode: canonical.sapCode,
-    });
   }
 
   return { rows: parsed, issues };

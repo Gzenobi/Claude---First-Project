@@ -14,18 +14,23 @@ describe("sapCostMasterParser sobre la v2 con columna CODIGO IP", () => {
     const outcome = parseSapCostMasterSheet("v2.xlsx", sheet, "CKM3_USD_LTR");
 
     // PHA100 = INTERTHANE 990 BASE FORTE, confirmado contra la fórmula real PHG590
-    const base = outcome.rows.find((r) => r.code === "PHA100");
-    expect(base).toBeDefined();
-    expect(base?.type).toBe("BASE");
-    expect(base?.hasCost).toBe(true);
-    expect(base?.sapCode).toBeDefined();
+    // (tiene 2 presentaciones — grande y chica — ver siguiente test)
+    const bases = outcome.rows.filter((r) => r.code === "PHA100");
+    expect(bases.length).toBeGreaterThan(0);
+    for (const base of bases) {
+      expect(base.type).toBe("BASE");
+      expect(base.hasCost).toBe(true);
+      expect(base.sapCode).toBeDefined();
+      // La Parte B vinculada debe resolverse a su CODIGO IP (PHA046), no al código SAP crudo
+      expect(base.linkedPartBCode).toBe("PHA046");
+    }
 
-    // La Parte B vinculada debe resolverse a su CODIGO IP (PHA046), no al código SAP crudo
-    expect(base?.linkedPartBCode).toBe("PHA046");
-
-    const partB = outcome.rows.find((r) => r.code === "PHA046");
-    expect(partB?.type).toBe("PART_B");
-    expect(partB?.hasCost).toBe(true);
+    const partBs = outcome.rows.filter((r) => r.code === "PHA046");
+    expect(partBs.length).toBeGreaterThan(0);
+    for (const partB of partBs) {
+      expect(partB.type).toBe("PART_B");
+      expect(partB.hasCost).toBe(true);
+    }
 
     // Los 4 concentrados de la fórmula PHG590 deben existir con costo
     for (const code of ["GVA124", "GVA145", "GVA146", "GVA147"]) {
@@ -36,22 +41,22 @@ describe("sapCostMasterParser sobre la v2 con columna CODIGO IP", () => {
     }
   });
 
-  it("colapsa códigos IP con múltiples envases SAP a un solo costo, advirtiendo sobre las alternativas", () => {
+  it("conserva las 2 presentaciones (grande/chica) de PHA100 como costos separados", () => {
     const buffer = readFileSync(filePath);
     const wb = parseWorkbook("v2.xlsx", buffer);
     const sheet = wb.sheets.find((s) => s.sheetName === "Materiales IP")!;
     const outcome = parseSapCostMasterSheet("v2.xlsx", sheet, "CKM3_USD_LTR");
 
-    // PHA100 tiene 2 filas SAP (15.08L y 2.72L) -> debe quedar UNA sola fila parseada
+    // PHA100 tiene 2 filas SAP (15.08L y 2.72L) -> deben quedar AMBAS (una por
+    // formato: 20L usa la grande, 3.6L usa la chica — confirmado por el usuario)
     const phaRows = outcome.rows.filter((r) => r.code === "PHA100");
-    expect(phaRows).toHaveLength(1);
-    expect(phaRows[0].packageSize).toBe("15.08"); // se eligió el envase más grande
+    expect(phaRows).toHaveLength(2);
+    const sizes = phaRows.map((r) => r.packageSize).sort();
+    expect(sizes).toEqual(["15.08", "2.72"]);
+    // no debe generarse una advertencia de "conflicto" por esto: son presentaciones válidas
+    expect(outcome.issues.some((i) => i.rowRef === "PHA100" && i.message.includes("envases distintos"))).toBe(false);
 
-    expect(
-      outcome.issues.some((i) => i.severity === "WARNING" && i.rowRef === "PHA100" && i.message.includes("envases distintos"))
-    ).toBe(true);
-
-    // GVA147 tiene 2 filas SAP con el MISMO tamaño (4L) y costos distintos -> también debe colapsar a una
+    // GVA147 tiene 2 filas SAP con el MISMO tamaño (4L) y costos distintos -> eso sí colapsa a una, con advertencia
     const gva147 = outcome.rows.filter((r) => r.code === "GVA147");
     expect(gva147).toHaveLength(1);
     expect(outcome.issues.some((i) => i.rowRef === "GVA147" && i.severity === "WARNING")).toBe(true);

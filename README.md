@@ -62,12 +62,30 @@ En una segunda entrega, el usuario agregó la columna **`CODIGO IP`** a la plani
 
 El importador (`sapCostMasterParser.ts`) usa `CODIGO IP` como `Component.code` cuando la columna está presente (con fallback al código SAP si no lo está, para no romper archivos previos). Esto reveló ambigüedades reales que había que resolver sin inventar valores:
 
-- **Un mismo `CODIGO IP` puede tener varios códigos SAP** (distintos envases/tamaños del mismo material — ej. `OIA046` tiene un envase de 0,72 L y otro de 4 L con costos distintos). El importador agrupa por `CODIGO IP`, elige el envase de **mayor `Contenido`** como costo vigente, y **advierte explícitamente las alternativas descartadas** en cada importación — nunca promedia ni oculta la elección. El vínculo Base→Parte B (§1.4) también se resuelve ahora a nivel de `CODIGO IP`, no de código SAP.
-- **Filas con el mismo tamaño de envase y costos distintos** (ej. `GVA147` con dos entradas de 4 L a USD 16,53/L y USD 10,78/L) — mismo tratamiento: se elige una, se informa la otra.
+- **Un mismo `CODIGO IP` puede tener varios códigos SAP** (distintos envases/tamaños del mismo material). El vínculo Base→Parte B (§1.4) también se resuelve a nivel de `CODIGO IP`, no de código SAP. **Corrección importante: ver §1.6** — esto no siempre es una ambigüedad a resolver con un único "costo vigente"; en Base y Parte B son dos presentaciones legítimas simultáneas.
+- **Filas con el mismo tamaño de envase y costos distintos SÍ son un conflicto real** (ej. `GVA147` con dos entradas de 4 L a USD 16,53/L y USD 10,78/L) — ahí sí se elige una de forma determinística y se informa la otra como descartada.
 - **Columna "Estado" en blanco** en muchas filas de colorante (ni "OK" ni "SIN COSTO"): se trata como válida (no genera advertencia por fila; sería demasiado ruido en un archivo con ~15 filas así).
 - **Typo real detectado y NO corregido automáticamente**: la fila SAP `5188993` tiene `CODIGO IP = GCA127` pero su descripción dice "GVA127" — probablemente un error de tipeo (`C` en vez de `V`) en el archivo de origen. El sistema **no adivina ni corrige códigos**: si no se arregla en el origen, las fórmulas que usan `GVA127` (varias de las planillas Chromascan) no van a encontrar este costo aunque exista uno muy parecido.
 
 **Resultado verificado** (`server/src/__tests__/sapCostMasterParserV2.real.test.ts` + prueba manual end-to-end): de las 5 fórmulas Chromascan originales, la de `CLB108` (Interlac 665, base `CLA106`) quedó **100% costeada con datos reales** — costo real USD 4,42/L, precio sugerido USD 8,85/L a 50% de contribución — porque tanto su base como sus 4 concentrados (`GVA122/145/146/147`) existen en el `CODIGO IP` del maestro. Las otras 4 fórmulas (`AAC018`, `AAD704`, `AAE019`, `AAJ019_REF`, todas de "Intergard 345", base `AAA011`) siguen marcando `CÁLCULO INCOMPLETO`: `AAA011` genuinamente no aparece en esta planilla de costos (no es un bug ni una fórmula/producto distintos — ese material específico simplemente no está en este extracto).
+
+### 1.6 Dos presentaciones por material (no una ambigüedad) + corrección del cálculo de base en 2K
+
+El usuario confirmó dos reglas de negocio que cambiaron el modelo:
+
+1. **Base y Parte B siempre vienen en dos envases**, uno para cada formato comercial conocido: el mayor para el conjunto de **20 L**, el menor para el de **3,6 L** (ej. `PHA100`: 15,08 L y 2,72 L; su Parte B vinculada `PHA046`: 2,83 L y 0,51 L). Esto **no es un conflicto a resolver eligiendo "el mejor"** — son dos costos vigentes simultáneos y válidos. Se corrigió el importador para que ya no colapse estos casos a una sola fila: ahora conserva un `ComponentCost` por tamaño, y `FormulaService` elige el que corresponde según el volumen comercial de la fórmula que se está costeando (≥10 L → envase grande, si no → chico). Solo se sigue resolviendo con un desempate explícito el caso de conflicto real (mismo tamaño, costos distintos — `GVA147`).
+2. **La fórmula "completar a volumen" (§1.2) depende de si el producto es 1K o 2K**: en 1K, Base + Concentrados = volumen final; en 2K, Base + Concentrados + Parte B = volumen final. El cálculo original (previo a esta corrección) no restaba el volumen de Parte B, así que sobreestimaba la cantidad de base en todos los productos 2K. Esto se movió de tiempo de importación a tiempo de cálculo (`FormulaService.getFormulaBreakdown`), porque recién ahí se conoce si el producto es 2K y cuánto ocupa su Parte B ya resuelta.
+
+**Verificado con `PHG590.xls` (Interthane 990, "Verde"/RAL 6002) en ambos formatos** — los números corrigen a los mostrados en una respuesta anterior, que subestimaban el peso de la Parte B:
+
+| Formato | Base (envase correcto) | Parte B (envase correcto) | Costo total/conjunto | Costo/L |
+|---|---|---|---|---|
+| 3,6 L | PHA100 chico, 2,72 L, USD 4,2377/L | PHA046 chico, 0,51 L, USD 8,2932/L | USD 22,36 | USD 6,21 |
+| 20 L | PHA100 grande, 15,08 L, USD 3,5747/L | PHA046 grande, 2,83 L, USD 6,0329/L | USD 107,79 | USD 5,39 |
+
+Como señal de que el modelo quedó bien: la cantidad de base que da "completar a volumen" (2,715 L y 15,087 L) coincide casi exactamente con el tamaño de envase real declarado para cada formato (2,72 L y 15,08 L) — no es una coincidencia forzada, es consecuencia de que ambas cuentas (elegir el envase correcto + restar la Parte B correcta) ahora están bien planteadas.
+
+Se repitió todo el proceso con una segunda fórmula real (`PHW846.xls`, mismo producto y base, color "Cinza"/RAL 7016) para confirmar que no fue un caso particular: costo real USD 5,52/L (3,6 L) y USD 4,69/L (20 L), sin errores.
 
 ---
 
