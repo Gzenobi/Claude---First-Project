@@ -17,6 +17,7 @@ productsRouter.get(
         code: p.code,
         name: p.name,
         kind: p.kind,
+        kindLocked: p.kindLocked,
         isDemo: p.isDemo,
         colorCount: p._count.colors,
       }))
@@ -41,7 +42,10 @@ productsRouter.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const { name, kind } = req.body as { name?: string; kind?: "ONE_K" | "TWO_K" };
-    const product = await prisma.product.update({ where: { id: req.params.id }, data: { name, kind } });
+    const product = await prisma.product.update({
+      where: { id: req.params.id },
+      data: { name, kind, kindLocked: kind !== undefined ? true : undefined },
+    });
     res.json(product);
   })
 );

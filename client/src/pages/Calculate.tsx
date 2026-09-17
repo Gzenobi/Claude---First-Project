@@ -120,17 +120,28 @@ export function Calculate() {
         </div>
         {formulas.length > 1 && (
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-dark uppercase">Tamaño de envase</label>
-            <div className="flex gap-2 mt-1">
-              {formulas.map((f) => (
-                <button
-                  key={f.id}
-                  className={formulaId === f.id ? "btn-primary" : "btn-secondary"}
-                  onClick={() => setFormulaId(f.id)}
-                >
-                  {f.commercialVolume} {f.commercialVolumeUnit}
-                </button>
-              ))}
+            <label className="text-xs font-semibold text-gray-dark uppercase">Fórmula</label>
+            <p className="text-xs text-gray-dark mb-1">
+              Este color tiene {formulas.length} fórmulas disponibles (distintos formatos, revisiones o plantas). Elija cuál usar.
+            </p>
+            <div className="flex flex-col gap-1.5 mt-1">
+              {formulas.map((f, i) => {
+                const secondary = f.version ? `Versión: ${f.version}` : f.sourceFileName ? f.sourceFileName : `Fórmula ${i + 1}`;
+                return (
+                  <button
+                    key={f.id}
+                    className={`text-left px-3 py-2 rounded border ${
+                      formulaId === f.id ? "border-sky bg-sky/10" : "border-(--border-subtle) hover:bg-(--bg-app)"
+                    }`}
+                    onClick={() => setFormulaId(f.id)}
+                  >
+                    <div className="font-medium text-sm">
+                      {f.commercialVolume} {f.commercialVolumeUnit}
+                    </div>
+                    <div className="text-xs text-gray-dark">{secondary}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

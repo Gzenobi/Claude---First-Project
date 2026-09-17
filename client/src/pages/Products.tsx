@@ -30,7 +30,7 @@ export function Products() {
   async function changeKind(kind: string) {
     if (!selected) return;
     await api.products.update(selected.id, { kind });
-    setSelected({ ...selected, kind: kind as Product["kind"] });
+    setSelected({ ...selected, kind: kind as Product["kind"], kindLocked: true });
     load();
   }
 
@@ -108,10 +108,15 @@ export function Products() {
                     <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
                     <div className="text-sm text-gray-dark">{selected.code}</div>
                   </div>
-                  <select className="input" value={selected.kind} onChange={(e) => changeKind(e.target.value)}>
-                    <option value="ONE_K">1K</option>
-                    <option value="TWO_K">2K</option>
-                  </select>
+                  <div className="text-right">
+                    <select className="input" value={selected.kind} onChange={(e) => changeKind(e.target.value)}>
+                      <option value="ONE_K">1K</option>
+                      <option value="TWO_K">2K</option>
+                    </select>
+                    <div className="text-[11px] text-gray-dark mt-1">
+                      {selected.kindLocked ? "Fijado manualmente" : "Detectado automáticamente (columna A/B/M)"}
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -106,22 +106,25 @@ export async function previewFormulaImport(
         }
       }
 
-      // Validaciones contra la base de datos: duplicados exactos (mismo color + volumen comercial)
+      // Un color puede tener más de una fórmula válida para el mismo volumen
+      // comercial (revisiones en el tiempo, distinta planta/receta, etc. —
+      // confirmado por el usuario): no se omite ninguna, solo se avisa que
+      // ya existían otras, para que se puedan distinguir/elegir al calcular.
       for (const f of formulas) {
         const existingColor = await prisma.color.findFirst({
           where: { code: f.colorCode, product: { code: f.productCode } },
           include: { formulas: true },
         });
         if (existingColor) {
-          const dup = existingColor.formulas.find(
+          const siblings = existingColor.formulas.filter(
             (ef) => ef.commercialVolume.toString() === f.commercialVolume && ef.commercialVolumeUnit === f.commercialVolumeUnit
           );
-          if (dup) {
+          if (siblings.length > 0) {
             issues.push({
               fileName: file.name,
               rowRef: f.colorCode,
               severity: "WARNING",
-              message: `Ya existe una fórmula para el color ${f.colorCode} con el mismo volumen comercial (${f.commercialVolume} ${f.commercialVolumeUnit}); se omitirá al confirmar.`,
+              message: `Ya hay ${siblings.length} fórmula(s) cargada(s) para el color ${f.colorCode} con el mismo volumen comercial (${f.commercialVolume} ${f.commercialVolumeUnit}); esta se agregará como una fórmula adicional, seleccionable al calcular.`,
             });
           }
         }
@@ -198,9 +201,8 @@ export async function commitFormulaImport(batchId: string): Promise<CommitSummar
   for (const file of batch.files) {
     for (const f of file.formulas) {
       try {
-        const result = await importOneFormula(f, importBatch.id);
-        if (result === "IMPORTED") imported++;
-        else skippedDuplicates++;
+        await importOneFormula(f, importBatch.id);
+        imported++;
       } catch (e) {
         rejected++;
         await prisma.importError.create({
@@ -249,7 +251,7 @@ export async function commitFormulaImport(batchId: string): Promise<CommitSummar
   };
 }
 
-async function importOneFormula(f: ParsedFormulaRow, importBatchId: string): Promise<"IMPORTED" | "DUPLICATE"> {
+async function importOneFormula(f: ParsedFormulaRow, importBatchId: string): Promise<void> {
   const product = await prisma.product.upsert({
     where: { code: f.productCode },
     update: { name: f.productName },
@@ -262,12 +264,17 @@ async function importOneFormula(f: ParsedFormulaRow, importBatchId: string): Pro
     create: { productId: product.id, code: f.colorCode, name: f.colorName, standard: f.colorStandard },
   });
 
-  const existingFormula = await prisma.formula.findFirst({
-    where: { colorId: color.id, commercialVolume: new Decimal(f.commercialVolume), commercialVolumeUnit: f.commercialVolumeUnit },
-  });
-  if (existingFormula) return "DUPLICATE";
-
+  // Un mismo color+volumen comercial puede tener más de una fórmula válida
+  // (revisiones en el tiempo, distinta planta/receta) — confirmado por el
+  // usuario: nunca se omite, todas quedan cargadas y seleccionables al calcular.
   const baseComponent = await ensureComponent(f.baseCode, "BASE");
+
+  // Si el maestro de costos ya vinculó esta base a una Parte B (columna
+  // A/B/M = "A" con "Codigo Parte B"), el producto es 2K — se infiere solo,
+  // sin pedirle al usuario que lo clasifique a mano (nunca se baja a 1K sola).
+  if (baseComponent.linkedPartBComponentId && product.kind !== "TWO_K" && !product.kindLocked) {
+    await prisma.product.update({ where: { id: product.id }, data: { kind: "TWO_K" } });
+  }
 
   const formula = await prisma.formula.create({
     data: {
@@ -308,8 +315,6 @@ async function importOneFormula(f: ParsedFormulaRow, importBatchId: string): Pro
       },
     });
   }
-
-  return "IMPORTED";
 }
 
 async function ensureComponent(code: string, type: "BASE" | "CONCENTRATE" | "PART_B") {
@@ -559,6 +564,21 @@ export async function commitCostImport(
     }
     if (partBComponentId) {
       await prisma.component.update({ where: { id: baseComponentId }, data: { linkedPartBComponentId: partBComponentId } });
+
+      // El vínculo recién resuelto puede revelar que un producto es 2K aunque
+      // sus fórmulas ya se hubieran importado antes que este maestro de costos
+      // (columna A/B/M = "A" con "Codigo Parte B" -> el producto usa esta base).
+      const formulasUsingBase = await prisma.formula.findMany({
+        where: { components: { some: { componentId: baseComponentId, role: "BASE" } } },
+        include: { color: { include: { product: true } } },
+      });
+      const productIds = new Set(formulasUsingBase.map((f) => f.color.product.id));
+      for (const productId of productIds) {
+        await prisma.product.updateMany({
+          where: { id: productId, kind: { not: "TWO_K" }, kindLocked: false },
+          data: { kind: "TWO_K" },
+        });
+      }
     } else {
       unresolvedPartBLinks.push(partBCode);
     }

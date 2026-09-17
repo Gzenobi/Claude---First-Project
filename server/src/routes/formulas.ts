@@ -79,7 +79,9 @@ formulasRouter.post(
       commercialVolumeUnit: string;
       concentrates: { componentId: string; quantity: string; unit: string }[];
       version?: string;
+      baseQuantityBasis?: "EXPLICIT" | "FILL_TO_VOLUME";
     };
+    const baseQuantityBasis = body.baseQuantityBasis === "FILL_TO_VOLUME" ? "FILL_TO_VOLUME" : "EXPLICIT";
     const formula = await prisma.formula.create({
       data: {
         colorId: body.colorId,
@@ -88,7 +90,7 @@ formulasRouter.post(
         batchVolumeUnit: body.commercialVolumeUnit,
         commercialVolume: new Decimal(body.commercialVolume),
         commercialVolumeUnit: body.commercialVolumeUnit,
-        baseQuantityBasis: "EXPLICIT",
+        baseQuantityBasis,
         components: {
           create: [
             { componentId: body.baseComponentId, role: "BASE", quantity: new Decimal(body.baseQuantity), unit: body.baseUnit, sortOrder: 0 },

@@ -18,6 +18,7 @@ export interface Product {
   code: string;
   name: string;
   kind: "ONE_K" | "TWO_K";
+  kindLocked: boolean;
   isDemo: boolean;
   colorCount: number;
 }
@@ -164,11 +165,23 @@ export const api = {
   },
   colors: {
     formulas: (id: string) => req<FormulaSummary[]>(`/colors/${id}/formulas`),
+    create: (data: { productId: string; code: string; name?: string; standard?: string }) =>
+      req<{ id: string }>(`/colors`, { method: "POST", body: JSON.stringify(data) }),
   },
   formulas: {
     pricing: (id: string, contribution?: string) => req<PricingResponse>(`/formulas/${id}/pricing${contribution ? `?contribution=${contribution}` : ""}`),
     remove: (id: string) => req<void>(`/formulas/${id}`, { method: "DELETE" }),
-    create: (data: unknown) => req(`/formulas`, { method: "POST", body: JSON.stringify(data) }),
+    create: (data: {
+      colorId: string;
+      baseComponentId: string;
+      baseQuantity: string;
+      baseUnit: string;
+      commercialVolume: string;
+      commercialVolumeUnit: string;
+      concentrates: { componentId: string; quantity: string; unit: string }[];
+      version?: string;
+      baseQuantityBasis?: "EXPLICIT" | "FILL_TO_VOLUME";
+    }) => req(`/formulas`, { method: "POST", body: JSON.stringify(data) }),
   },
   components: {
     list: (type?: string) => req<ComponentRow[]>(`/components${type ? `?type=${type}` : ""}`),

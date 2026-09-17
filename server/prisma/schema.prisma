@@ -33,6 +33,10 @@ model Product {
   code        String   @unique
   name        String
   kind        String // ProductKind
+  // true una vez que alguien fija `kind` a mano desde la UI: a partir de ahí
+  // la inferencia automática (desde la columna A/B/M del maestro de costos,
+  // vía Component.linkedPartBComponentId) deja de pisarlo.
+  kindLocked  Boolean  @default(false)
   isDemo      Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
