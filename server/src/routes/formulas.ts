@@ -82,6 +82,19 @@ formulasRouter.post(
       baseQuantityBasis?: "EXPLICIT" | "FILL_TO_VOLUME";
     };
     const baseQuantityBasis = body.baseQuantityBasis === "FILL_TO_VOLUME" ? "FILL_TO_VOLUME" : "EXPLICIT";
+
+    // Igual que en la importación de fórmulas desde Excel: si el maestro de
+    // costos ya vinculó esta base a una Parte B (columna A/B/M = "A" con
+    // "Codigo Parte B"), el producto es 2K — se infiere solo, sin que la
+    // fórmula manual tenga que declararlo.
+    const baseComponent = await prisma.component.findUnique({ where: { id: body.baseComponentId } });
+    if (baseComponent?.linkedPartBComponentId) {
+      const color = await prisma.color.findUniqueOrThrow({ where: { id: body.colorId }, include: { product: true } });
+      if (color.product.kind !== "TWO_K" && !color.product.kindLocked) {
+        await prisma.product.update({ where: { id: color.product.id }, data: { kind: "TWO_K" } });
+      }
+    }
+
     const formula = await prisma.formula.create({
       data: {
         colorId: body.colorId,
