@@ -7,10 +7,7 @@ generator client {
 }
 
 datasource db {
-  // SQLite para desarrollo local. El esquema evita features SQLite-only
-  // (usa String en vez de enums nativos, Decimal como String) para poder
-  // migrar a PostgreSQL cambiando solo `provider` + tipos Decimal nativos.
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

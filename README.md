@@ -166,7 +166,7 @@ Cada `Calculation` guarda un **snapshot inmutable** (`CalculationItem` → `Comp
 
 ## 6. Stack técnico
 
-- **Backend:** Node.js + TypeScript + Express + Prisma (SQLite dev / Postgres-ready) + `xlsx` (SheetJS) + `decimal.js` + `multer`. Tests con Vitest.
+- **Backend:** Node.js + TypeScript + Express + Prisma (PostgreSQL) + `xlsx` (SheetJS) + `decimal.js` + `multer`. Tests con Vitest.
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS v4 + React Router + Recharts (donut de composición de costo).
 - **Identidad visual:** paleta oficial AkzoNobel (Navy `#005192` como color ancla, Sky, Purple, Ultramarine, Fuchsia, Violet), sin rojo como color dominante.
 
@@ -174,13 +174,15 @@ Cada `Calculation` guarda un **snapshot inmutable** (`CalculationItem` → `Comp
 
 ## 7. Cómo correr el proyecto localmente
 
-Requisitos: Node.js 20+.
+Requisitos: Node.js 20+ y una base PostgreSQL (local o en un contenedor).
 
 ```bash
 # Backend
 cd server
 npm install
-npx prisma migrate deploy   # crea server/prisma/dev.db
+echo 'DATABASE_URL="postgresql://usuario:password@localhost:5432/calculadora"' > .env
+echo 'PORT=4000' >> .env
+npx prisma migrate deploy   # crea el esquema en la base
 npm run seed                # carga datos DEMO DATA
 npm run dev                 # API en http://localhost:4000
 
@@ -204,5 +206,35 @@ Flujo sugerido dentro de la app: **Importar Costos → Importar Fórmulas → Ca
 ## 8. Limitaciones conocidas (MVP)
 
 - Los lotes de importación en estado "vista previa" se guardan en memoria del proceso del servidor (no en base de datos): si el servidor se reinicia entre el análisis y la confirmación, hay que volver a analizar los archivos. Una vez confirmada, la importación sí es permanente.
-- No hay autenticación de usuarios todavía (el modelo de datos ya contempla el campo para incorporarla).
+- Sin autenticación ni roles — decisión explícita: cualquiera con la URL puede ver y editar todo. Ver §9 sobre las implicancias de esto al desplegar.
+- Sin backups automáticos de la base de datos — decisión explícita del negocio.
 - El parser "Chromascan" cubre el formato de los 5 archivos reales analizados; cualquier otro formato pasa por el asistente de mapeo de columnas genérico en vez de fallar.
+
+---
+
+## 9. Despliegue en producción (un solo servicio, sin instalar nada en cada PC)
+
+La app se empaqueta en **una sola imagen Docker** (`Dockerfile` en la raíz) que compila el frontend, lo sirve desde el mismo proceso Express que expone la API, y aplica las migraciones de base de datos al arrancar. El resultado: un único servicio con una única URL pública — el usuario final solo necesita un navegador.
+
+### Pasos (Railway, recomendado por simplicidad)
+
+1. Crear una cuenta en [railway.app](https://railway.app) (tiene plan gratuito/hobby).
+2. "New Project" → "Deploy from GitHub repo" → elegir este repositorio. Railway detecta el `Dockerfile` automáticamente.
+3. "New" → "Database" → "Add PostgreSQL" dentro del mismo proyecto. Railway crea la base y expone su `DATABASE_URL`.
+4. En el servicio de la app, ir a "Variables" y agregar `DATABASE_URL` referenciando la del servicio de Postgres (Railway permite enlazarla con `${{Postgres.DATABASE_URL}}`).
+5. Deploy. Al arrancar, el contenedor corre `prisma migrate deploy` (crea las tablas) y después levanta el servidor.
+6. Railway asigna una URL pública HTTPS (ej. `https://calculadora-costos.up.railway.app`) — esa es la que se comparte con el equipo. No hace falta instalar nada en ninguna PC, solo abrir esa URL en el navegador.
+7. Actualizaciones futuras: cada `git push` a la rama desplegada reconstruye y redespliega automáticamente.
+
+Cualquier otro proveedor que construya a partir de un `Dockerfile` y ofrezca una base Postgres administrada (Render, Fly.io, un VPS propio, etc.) sirve igual — los pasos son equivalentes.
+
+### Importante dado que no hay login
+
+La URL pública queda accesible a quien la tenga, sin autenticación. Mientras la URL no se difunda ampliamente (no se publica en ningún lado indexable) el riesgo práctico es bajo, pero cualquiera con el link puede ver y modificar todos los datos, incluidos los costos. Si en el futuro esto deja de ser aceptable, se puede agregar una contraseña compartida simple sin necesitar un sistema de usuarios completo.
+
+### Variables de entorno que necesita el contenedor
+
+| Variable | Ejemplo | Notas |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/db` | La de la base Postgres administrada por el proveedor de hosting. |
+| `PORT` | `4000` (o el que asigne la plataforma) | Railway/Render lo inyectan automáticamente; no hace falta setearlo a mano. |

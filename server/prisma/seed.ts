@@ -9,14 +9,7 @@ async function main() {
   await prisma.setting.upsert({
     where: { id: 1 },
     update: {},
-    create: { id: 1, defaultContributionPct: new Decimal(0.5), mainCurrency: "USD" },
-  });
-
-  await prisma.exchangeRate.createMany({
-    data: [
-      { fromCurrency: "USD", toCurrency: "ARS", rate: new Decimal(1000), asOfDate: new Date() },
-      { fromCurrency: "EUR", toCurrency: "USD", rate: new Decimal(1.08), asOfDate: new Date() },
-    ],
+    create: { id: 1, defaultContributionPct: new Decimal(0.5) },
   });
 
   // --- Componentes DEMO -----------------------------------------------------

@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { productsRouter } from "./routes/products.js";
 import { colorsRouter } from "./routes/colors.js";
 import { formulasRouter } from "./routes/formulas.js";
@@ -23,6 +25,14 @@ app.use("/api/imports", importsRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/dashboard", dashboardRouter);
+
+// En producción, este mismo servicio sirve el build del cliente (React SPA)
+// para que todo corra desde una única URL sin instalar nada en cada PC.
+const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../client/dist");
+app.use(express.static(clientDist));
+app.get(/^(?!\/api).*/, (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
