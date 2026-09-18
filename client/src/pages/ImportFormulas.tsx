@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { IconCloudUpload } from "../components/icons";
 import { api } from "../api";
 
 interface MappingState {
@@ -206,7 +207,7 @@ export function ImportFormulas() {
           addFiles(e.dataTransfer.files);
         }}
       >
-        <div className="text-3xl mb-2">📥</div>
+        <IconCloudUpload className="w-9 h-9 mb-2 mx-auto text-navy" />
         <p className="text-sm text-gray-dark">Arrastre archivos aquí (soporta selección masiva de carpetas), o</p>
         <button className="btn-secondary mt-2" onClick={() => inputRef.current?.click()}>
           Seleccionar archivos

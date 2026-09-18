@@ -1,17 +1,29 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
+import {
+  IconDashboard,
+  IconCalculate,
+  IconList,
+  IconProduct,
+  IconFormula,
+  IconTag,
+  IconUploadFile,
+  IconUploadSheet,
+  IconHistory,
+  IconSettings,
+} from "./icons";
 
 const items = [
-  { to: "/", label: "Dashboard", icon: "📊" },
-  { to: "/calcular", label: "Calcular Color", icon: "🎨" },
-  { to: "/lista", label: "Lista de Costos", icon: "📋" },
-  { to: "/productos", label: "Productos", icon: "🧴" },
-  { to: "/formulas", label: "Fórmulas de Color", icon: "🧪" },
-  { to: "/componentes", label: "Costos de Componentes", icon: "💲" },
-  { to: "/importar-formulas", label: "Importar Fórmulas", icon: "📥" },
-  { to: "/importar-costos", label: "Importar Costos", icon: "📥" },
-  { to: "/historial", label: "Historial", icon: "🕓" },
-  { to: "/configuracion", label: "Configuración", icon: "⚙️" },
+  { to: "/", label: "Dashboard", icon: IconDashboard },
+  { to: "/calcular", label: "Calcular Color", icon: IconCalculate },
+  { to: "/lista", label: "Lista de Costos", icon: IconList },
+  { to: "/productos", label: "Productos", icon: IconProduct },
+  { to: "/formulas", label: "Fórmulas de Color", icon: IconFormula },
+  { to: "/componentes", label: "Costos de Componentes", icon: IconTag },
+  { to: "/importar-formulas", label: "Importar Fórmulas", icon: IconUploadFile },
+  { to: "/importar-costos", label: "Importar Costos", icon: IconUploadSheet },
+  { to: "/historial", label: "Historial", icon: IconHistory },
+  { to: "/configuracion", label: "Configuración", icon: IconSettings },
 ];
 
 export function Sidebar() {
@@ -34,7 +46,7 @@ export function Sidebar() {
               )
             }
           >
-            <span className="text-base">{item.icon}</span>
+            <item.icon className="w-5 h-5 shrink-0" />
             {item.label}
           </NavLink>
         ))}

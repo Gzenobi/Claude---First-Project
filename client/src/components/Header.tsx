@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type SearchResults } from "../api";
+import { IconSearch } from "./icons";
 
 export function Header() {
   const [q, setQ] = useState("");
@@ -37,13 +38,14 @@ export function Header() {
     <header className="h-16 shrink-0 bg-white border-b border-(--border-subtle) flex items-center px-6 gap-4">
       <div className="relative w-full max-w-md" ref={boxRef}>
         <input
-          className="input w-full pl-9"
+          className="input w-full"
+          style={{ paddingLeft: "2.25rem" }}
           placeholder="Buscar producto, color (ej. RAL 5015), base o concentrado..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => q && setOpen(true)}
         />
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-dark text-sm">🔎</span>
+        <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-dark w-4 h-4 pointer-events-none" />
         {open && q && (
           <div className="absolute mt-1 w-full card z-50 max-h-96 overflow-y-auto text-sm">
             {!hasResults && <div className="p-3 text-gray-dark">Sin resultados para "{q}".</div>}
