@@ -168,23 +168,23 @@ export function Calculate() {
           )}
 
           <div className="card p-5">
-            <h2 className="font-semibold text-navy mb-3">Base</h2>
+            <div className="section-bar -mx-5 -mt-5 mb-4">Base</div>
             <LinesTable lines={breakdown.lines.filter((l) => l.role === "BASE")} />
           </div>
           <div className="card p-5">
-            <h2 className="font-semibold text-navy mb-3">Concentrados</h2>
+            <div className="section-bar -mx-5 -mt-5 mb-4">Concentrados</div>
             <LinesTable lines={breakdown.lines.filter((l) => l.role === "CONCENTRATE")} />
           </div>
           {breakdown.productKind === "TWO_K" && (
             <div className="card p-5">
-              <h2 className="font-semibold text-navy mb-3">Parte B</h2>
+              <div className="section-bar -mx-5 -mt-5 mb-4">Parte B</div>
               <LinesTable lines={breakdown.lines.filter((l) => l.role === "PART_B")} />
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card p-5">
-              <h2 className="font-semibold text-navy mb-3">Composición del costo</h2>
+              <div className="section-bar -mx-5 -mt-5 mb-4">Composición del costo</div>
               {donutData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -210,7 +210,7 @@ export function Calculate() {
             </div>
 
             <div className="card p-5 space-y-2 text-sm">
-              <h2 className="font-semibold text-navy mb-1">Resumen</h2>
+              <div className="section-bar -mx-5 -mt-5 mb-4">Resumen</div>
               <Row label="Costo Parte A (Base + Concentrados)" value={`${money(Number(breakdown.baseCost) + Number(breakdown.concentrateCost))}`} />
               {breakdown.productKind === "TWO_K" && <Row label="Costo Parte B" value={`${money(breakdown.partBCost)}`} />}
               <Row label="Costo Total / conjunto" value={`${money(breakdown.totalCostPerSet)}`} bold />
@@ -227,7 +227,7 @@ export function Calculate() {
           </div>
 
           <div className="card p-5">
-            <h2 className="font-semibold text-navy mb-3">Simulador de contribución</h2>
+            <div className="section-bar -mx-5 -mt-5 mb-4">Simulador de contribución</div>
             <div className="flex items-center gap-4">
               <input
                 type="range"

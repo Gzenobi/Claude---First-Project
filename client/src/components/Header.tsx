@@ -108,8 +108,9 @@ export function Header() {
           </div>
         )}
       </div>
-      <div className="ml-auto flex items-center gap-3 text-sm text-gray-dark">
+      <div className="ml-auto flex items-center gap-4 text-sm text-gray-dark">
         <span className="badge badge-ok">DEMO DATA incluida</span>
+        <img src="/logos/international-blue.png" alt="International" className="h-7 w-auto" />
       </div>
     </header>
   );
