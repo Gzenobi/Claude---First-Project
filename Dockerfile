@@ -11,6 +11,7 @@ COPY client/ ./
 RUN npm run build
 
 FROM node:22-slim AS server-build
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm ci
@@ -19,6 +20,7 @@ RUN npx prisma generate
 RUN npm run build
 
 FROM node:22-slim
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 ENV NODE_ENV=production
 COPY --from=server-build /app/server/node_modules ./node_modules
