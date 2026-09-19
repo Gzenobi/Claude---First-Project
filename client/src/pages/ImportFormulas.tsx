@@ -316,11 +316,12 @@ export function ImportFormulas() {
 
       {preview && (
         <div className="card p-5">
+          <div className="section-bar -mx-5 -mt-5 mb-4">Vista previa</div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-navy">
-              Vista previa: {preview.totals.formulas} fórmula(s) en {preview.totals.files} archivo(s) — {preview.totals.errors} error(es),{" "}
+            <p className="text-sm text-gray-dark">
+              {preview.totals.formulas} fórmula(s) en {preview.totals.files} archivo(s) — {preview.totals.errors} error(es),{" "}
               {preview.totals.warnings} advertencia(s)
-            </h3>
+            </p>
             <button className="btn-secondary text-xs" onClick={downloadErrorReport}>
               Descargar reporte (errores y advertencias)
             </button>
@@ -369,8 +370,8 @@ export function ImportFormulas() {
       )}
 
       {result && (
-        <div className="card p-5 border-l-4 border-l-navy">
-          <h3 className="font-semibold text-navy mb-2">Resumen de importación</h3>
+        <div className="card p-5">
+          <div className="section-bar -mx-5 -mt-5 mb-4">Resumen de importación</div>
           <ul className="text-sm space-y-1">
             <li>Importadas: {result.imported}</li>
             <li>Omitidas (duplicadas): {result.skippedDuplicates}</li>
@@ -411,7 +412,7 @@ function MappingWizard({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="card bg-white p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
-        <h3 className="font-semibold text-navy mb-1">Mapear columnas (se aplica a todo el lote)</h3>
+        <div className="section-bar -mx-6 -mt-6 mb-4">Mapear columnas (se aplica a todo el lote)</div>
         <p className="text-xs text-gray-dark mb-4">
           Asocie cada campo del sistema con la columna correspondiente del Excel. Este mapeo se reutiliza para todos los archivos del lote
           que no se detecten automáticamente como "Chromascan" — no hace falta repetirlo por archivo.
