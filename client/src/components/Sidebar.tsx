@@ -31,7 +31,7 @@ export function Sidebar() {
     <aside className="w-64 shrink-0 bg-navy text-white flex flex-col h-full">
       <div className="px-5 py-6 border-b border-white/10">
         <img src="/logos/akzonobel-white.svg" alt="AkzoNobel" className="h-6 w-auto mb-3" />
-        <div className="text-lg font-bold leading-tight">¡Calculadora de<br />Costos de Colores!</div>
+        <div className="text-lg font-bold leading-tight">Plataforma para el<br />cálculo de colores<br />ChromaScan</div>
         <div className="text-xs text-white/70 mt-1">International Paint | Costing &amp; Pricing Tool</div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
