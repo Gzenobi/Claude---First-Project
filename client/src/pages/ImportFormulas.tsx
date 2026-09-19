@@ -171,13 +171,43 @@ export function ImportFormulas() {
     }
   }
 
+  // El reporte separa errores reales (pocos, uno por archivo con problema) de
+  // advertencias esperadas (miles de filas idénticas en lotes grandes, ej. el
+  // supuesto de "completar a volumen" que aplica a casi cualquier fórmula real
+  // porque el origen no declara la base) — mezclarlas en una sola lista plana
+  // hacía parecer "infinidad de errores" cuando el import había salido bien.
   function downloadErrorReport() {
     if (!preview) return;
-    const rows: string[][] = [["Archivo", "Severidad", "Referencia", "Mensaje"]];
+    const rows: string[][] = [];
+
+    rows.push(["ERRORES — requieren revisión"]);
+    rows.push(["Archivo", "Referencia", "Mensaje"]);
+    let errorRows = 0;
     for (const f of preview.files) {
-      for (const e of f.errors) rows.push([f.fileName, "ERROR", e.rowRef ?? "", e.message]);
-      for (const w of f.warnings) rows.push([f.fileName, "WARNING", w.rowRef ?? "", w.message]);
+      for (const e of f.errors) {
+        rows.push([f.fileName, e.rowRef ?? "", e.message]);
+        errorRows++;
+      }
     }
+    if (errorRows === 0) rows.push(["(ninguno)"]);
+
+    const warningsByMessage = new Map<string, string[]>();
+    for (const f of preview.files) {
+      for (const w of f.warnings) {
+        const list = warningsByMessage.get(w.message) ?? [];
+        list.push(f.fileName);
+        warningsByMessage.set(w.message, list);
+      }
+    }
+    rows.push([]);
+    rows.push(["ADVERTENCIAS — esperadas, no requieren acción"]);
+    rows.push(["Mensaje", "Cantidad de archivos", "Ejemplos de archivos"]);
+    if (warningsByMessage.size === 0) rows.push(["(ninguna)"]);
+    for (const [message, fileNames] of warningsByMessage) {
+      const examples = fileNames.slice(0, 15).join(", ") + (fileNames.length > 15 ? ", ..." : "");
+      rows.push([message, String(fileNames.length), examples]);
+    }
+
     downloadCsv(`reporte-importacion-formulas-${Date.now()}.csv`, rows);
   }
 
@@ -292,7 +322,7 @@ export function ImportFormulas() {
               {preview.totals.warnings} advertencia(s)
             </h3>
             <button className="btn-secondary text-xs" onClick={downloadErrorReport}>
-              Descargar reporte de errores (CSV)
+              Descargar reporte (errores y advertencias)
             </button>
           </div>
           <table className="w-full text-sm">
