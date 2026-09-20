@@ -4,6 +4,7 @@ Estas son decisiones que el usuario (Gabriel) ya tomó. No volver a preguntarlas
 
 ## Flujo de trabajo
 
+- **URL pública de la app en Render**: https://proyecto-costo-colores.onrender.com — plan gratuito, así que si no tuvo tráfico en ~15 min se "duerme" y el primer acceso tarda unos segundos en cargar (cold start); es esperado, no un bug.
 - **Nunca hacer `git push` sin confirmación explícita del usuario.** Cada push dispara un redeploy automático en Render. Trabajar primero en el sandbox; recién pushear cuando el usuario lo pida con algo como "pushealo".
 - Este sandbox **no tiene acceso a `onrender.com`** (bloqueado por política de red). No se puede verificar nada directamente en Render; el usuario manda screenshots y yo doy instrucciones exactas de click a click, o opero la herramienta yo mismo vía Playwright contra el sandbox cuando el usuario lo pide.
 - Los servidores de desarrollo del sandbox (Postgres, backend, Vite) se caen seguido (reinicios del contenedor). Reiniciar en este orden: `service postgresql start` → verificar con `psql -d calculadora -c "SELECT 1;"` → `nohup npx tsx src/index.ts &` (desde `server/`) → `nohup npx vite --port 5173 &` (desde `client/`).
