@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Product, type ColorSummary } from "../api";
+import { SearchableSelect } from "../components/SearchableSelect";
 
 export function Products() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -7,6 +8,11 @@ export function Products() {
   const [colors, setColors] = useState<ColorSummary[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ code: "", name: "" });
+  const [merging, setMerging] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [mergeName, setMergeName] = useState("");
+  const [mergeConfirm, setMergeConfirm] = useState(false);
+  const [mergeBusy, setMergeBusy] = useState(false);
 
   function load() {
     api.products.list().then(setProducts);
@@ -14,6 +20,10 @@ export function Products() {
   useEffect(load, []);
   useEffect(() => {
     if (selected) api.products.colors(selected.id).then(setColors);
+    setMerging(false);
+    setMergeTargetId(null);
+    setMergeName("");
+    setMergeConfirm(false);
   }, [selected]);
 
   async function createProduct() {
@@ -25,6 +35,28 @@ export function Products() {
     setForm({ code: "", name: "" });
     setShowNew(false);
     load();
+  }
+
+  async function runMerge() {
+    if (!selected || !mergeTargetId) return;
+    setMergeBusy(true);
+    try {
+      const merged = await api.products.merge({
+        sourceProductId: selected.id,
+        targetProductId: mergeTargetId,
+        targetName: mergeName || undefined,
+      });
+      setMerging(false);
+      setMergeTargetId(null);
+      setMergeName("");
+      setMergeConfirm(false);
+      setSelected(null);
+      load();
+      // pequeña espera para que la lista recién cargada incluya al producto fusionado
+      setTimeout(() => api.products.list().then((ps) => setSelected(ps.find((p) => p.id === merged.id) ?? null)), 200);
+    } finally {
+      setMergeBusy(false);
+    }
   }
 
   return (
@@ -78,8 +110,72 @@ export function Products() {
           {selected ? (
             <>
               <div className="card p-5">
-                <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
-                <div className="text-sm text-gray-dark">{selected.code}</div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
+                    <div className="text-sm text-gray-dark">{selected.code}</div>
+                  </div>
+                  {!merging && (
+                    <button className="btn-secondary text-xs shrink-0" onClick={() => setMerging(true)}>
+                      Fusionar con otro producto...
+                    </button>
+                  )}
+                </div>
+
+                {merging && (
+                  <div className="mt-4 pt-4 border-t border-(--border-subtle) space-y-3">
+                    <p className="text-xs text-gray-dark">
+                      Los colores y fórmulas de <strong>{selected.name}</strong> se pasan al producto elegido, y este producto se elimina.
+                      Usalo cuando dos nombres distintos son en realidad la misma marca (ej. un typo).
+                    </p>
+                    <div>
+                      <label className="text-xs text-gray-dark">Fusionar con</label>
+                      <SearchableSelect
+                        placeholder="Seleccione el producto que se conserva..."
+                        value={mergeTargetId}
+                        onChange={(v) => {
+                          setMergeTargetId(v);
+                          setMergeConfirm(false);
+                        }}
+                        options={products.filter((p) => p.id !== selected.id).map((p) => ({ value: p.id, label: p.name, sublabel: p.code }))}
+                      />
+                    </div>
+                    {mergeTargetId && (
+                      <div>
+                        <label className="text-xs text-gray-dark">Nombre final (opcional, si ninguno de los dos es el correcto)</label>
+                        <input
+                          className="input w-full"
+                          placeholder={products.find((p) => p.id === mergeTargetId)?.name}
+                          value={mergeName}
+                          onChange={(e) => setMergeName(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {mergeTargetId && !mergeConfirm && (
+                        <button className="btn-primary" onClick={() => setMergeConfirm(true)}>
+                          Fusionar
+                        </button>
+                      )}
+                      {mergeConfirm && (
+                        <button className="btn-primary" disabled={mergeBusy} onClick={runMerge}>
+                          {mergeBusy ? "Fusionando..." : "Confirmar fusión — no se puede deshacer"}
+                        </button>
+                      )}
+                      <button
+                        className="btn-secondary"
+                        onClick={() => {
+                          setMerging(false);
+                          setMergeTargetId(null);
+                          setMergeName("");
+                          setMergeConfirm(false);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="card p-5">
