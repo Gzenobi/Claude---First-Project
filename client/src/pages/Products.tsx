@@ -19,6 +19,9 @@ export function Products() {
   const [bulkName, setBulkName] = useState("");
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameBusy, setNameBusy] = useState(false);
 
   function load() {
     api.products.list().then(setProducts);
@@ -35,7 +38,25 @@ export function Products() {
     setBulkSearch("");
     setBulkName("");
     setBulkConfirm(false);
+    setEditingName(false);
+    setNameDraft(selected?.name ?? "");
   }, [selected]);
+
+  async function saveName() {
+    if (!selected || !nameDraft.trim() || nameDraft.trim() === selected.name) {
+      setEditingName(false);
+      return;
+    }
+    setNameBusy(true);
+    try {
+      const updated = await api.products.update(selected.id, { name: nameDraft.trim() });
+      setSelected(updated);
+      setEditingName(false);
+      load();
+    } finally {
+      setNameBusy(false);
+    }
+  }
 
   async function createProduct() {
     if (!form.code || !form.name) return;
@@ -144,11 +165,46 @@ export function Products() {
             <>
               <div className="card p-5">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
+                  <div className="flex-1">
+                    {editingName ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="input text-lg font-semibold text-navy py-1"
+                          value={nameDraft}
+                          autoFocus
+                          onChange={(e) => setNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveName();
+                            if (e.key === "Escape") {
+                              setEditingName(false);
+                              setNameDraft(selected.name);
+                            }
+                          }}
+                        />
+                        <button className="btn-primary text-xs" disabled={nameBusy} onClick={saveName}>
+                          {nameBusy ? "Guardando..." : "Guardar"}
+                        </button>
+                        <button
+                          className="btn-secondary text-xs"
+                          onClick={() => {
+                            setEditingName(false);
+                            setNameDraft(selected.name);
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-navy text-lg">{selected.name}</h2>
+                        <button className="text-xs text-sky font-medium" onClick={() => setEditingName(true)}>
+                          Editar nombre
+                        </button>
+                      </div>
+                    )}
                     <div className="text-sm text-gray-dark">{selected.code}</div>
                   </div>
-                  {!merging && !bulkMerging && (
+                  {!merging && !bulkMerging && !editingName && (
                     <div className="flex gap-2 shrink-0">
                       <button className="btn-secondary text-xs" onClick={() => setBulkMerging(true)}>
                         Fusión múltiple...
