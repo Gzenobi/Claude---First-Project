@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type DashboardData } from "../api";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { api, type DashboardData, type DashboardTimelinePoint } from "../api";
 
 function Kpi({ label, value, tone, hint }: { label: string; value: string | number; tone?: "warning" | "ok"; hint?: string }) {
   return (
@@ -12,11 +13,18 @@ function Kpi({ label, value, tone, hint }: { label: string; value: string | numb
   );
 }
 
+function formatDay(day: string) {
+  const [, m, d] = day.split("-");
+  return `${d}/${m}`;
+}
+
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [timeline, setTimeline] = useState<DashboardTimelinePoint[] | null>(null);
 
   useEffect(() => {
     api.dashboard().then(setData);
+    api.dashboardTimeline().then(setTimeline);
   }, []);
 
   if (!data) return <div className="text-gray-dark">Cargando…</div>;
@@ -46,6 +54,55 @@ export function Dashboard() {
           hint={data.formulasWithErrors > 0 ? "Falta costo de al menos un componente" : "Todo OK"}
         />
       </div>
+
+      {timeline && timeline.length > 1 && (
+        <div className="card p-5">
+          <div className="section-bar -mx-5 -mt-5 mb-4">Crecimiento del catálogo</div>
+          <p className="text-xs text-gray-dark mb-3">Colores y fórmulas cargados en el sistema, acumulados por día.</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={timeline} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
+              <XAxis dataKey="day" tickFormatter={formatDay} tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip labelFormatter={(d) => formatDay(String(d))} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "colors" ? "Colores" : "Fórmulas")} />
+              <Line type="monotone" dataKey="colors" name="colors" stroke="#003A70" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="formulas" name="formulas" stroke="#008BC5" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {data.topMissingCostComponents.length > 0 && (
+        <div className="card p-5">
+          <div className="section-bar -mx-5 -mt-5 mb-4">Componentes sin costo que más fórmulas bloquean</div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-dark uppercase border-b border-(--border-subtle)">
+                <th className="py-1.5 pr-4">Código</th>
+                <th className="py-1.5 pr-4">Descripción</th>
+                <th className="py-1.5 text-right">Fórmulas afectadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.topMissingCostComponents.map((c) => (
+                <tr key={c.code} className="border-b border-(--border-subtle) last:border-0">
+                  <td className="py-1.5 pr-4 font-mono text-xs">{c.code}</td>
+                  <td className="py-1.5 pr-4">{c.description}</td>
+                  <td className="py-1.5 text-right font-semibold text-fuchsia">{c.formulasBlocked}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-dark mt-2">
+            Cargar el costo de estos componentes en{" "}
+            <Link to="/componentes" className="text-sky font-medium">
+              Costos de Componentes
+            </Link>{" "}
+            destraba la mayor cantidad de fórmulas con el menor esfuerzo.
+          </p>
+        </div>
+      )}
 
       <div className="card p-6">
         <h2 className="font-semibold text-navy mb-3">Flujo recomendado</h2>

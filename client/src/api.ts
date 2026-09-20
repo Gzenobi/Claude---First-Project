@@ -133,6 +133,12 @@ export interface DashboardData {
   twoKCount: number;
   lastCostUpdate: string | null;
   formulasWithErrors: number;
+  topMissingCostComponents: { code: string; description: string; formulasBlocked: number }[];
+}
+export interface DashboardTimelinePoint {
+  day: string;
+  colors: number;
+  formulas: number;
 }
 export interface SearchResults {
   products: { id: string; code: string; name: string; kind: string }[];
@@ -250,4 +256,5 @@ export const api = {
   },
   search: (q: string) => req<SearchResults>(`/search?q=${encodeURIComponent(q)}`),
   dashboard: () => req<DashboardData>("/dashboard"),
+  dashboardTimeline: () => req<DashboardTimelinePoint[]>("/dashboard/timeline"),
 };
