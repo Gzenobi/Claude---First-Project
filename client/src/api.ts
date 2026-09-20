@@ -160,7 +160,7 @@ export const api = {
     update: (id: string, data: { name?: string; kind?: string }) => req<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     remove: (id: string) => req<void>(`/products/${id}`, { method: "DELETE" }),
     colors: (id: string) => req<ColorSummary[]>(`/products/${id}/colors`),
-    merge: (data: { sourceProductId: string; targetProductId: string; targetName?: string }) =>
+    merge: (data: { sourceProductIds: string[]; targetProductId: string; targetName?: string }) =>
       req<Product>("/products/merge", { method: "POST", body: JSON.stringify(data) }),
   },
   colors: {

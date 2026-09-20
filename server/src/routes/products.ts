@@ -58,66 +58,72 @@ productsRouter.delete(
   })
 );
 
-// Fusiona dos productos que en realidad son la misma marca (ej. un typo del
-// nombre creó un duplicado, o dos archivos de origen nombraron distinto la
-// misma línea). Nunca borra colores/fórmulas: los reasigna al producto
-// destino, resolviendo colisiones de código de color, y recién ahí borra el
-// producto de origen (que queda sin hijos).
+// Fusiona uno o varios productos que en realidad son la misma marca (ej. un
+// typo del nombre creó un duplicado, o varios archivos de origen nombraron
+// distinto la misma línea). Nunca borra colores/fórmulas: los reasigna al
+// producto destino, resolviendo colisiones de código de color, y recién ahí
+// borra los productos de origen (que quedan sin hijos).
 productsRouter.post(
   "/merge",
   asyncHandler(async (req, res) => {
-    const { sourceProductId, targetProductId, targetName } = req.body as {
+    const body = req.body as {
       sourceProductId?: string;
+      sourceProductIds?: string[];
       targetProductId?: string;
       targetName?: string;
     };
-    if (!sourceProductId || !targetProductId) {
-      res.status(400).json({ error: "sourceProductId y targetProductId son requeridos." });
+    const sourceProductIds = body.sourceProductIds ?? (body.sourceProductId ? [body.sourceProductId] : []);
+    const { targetProductId, targetName } = body;
+    if (sourceProductIds.length === 0 || !targetProductId) {
+      res.status(400).json({ error: "sourceProductId(s) y targetProductId son requeridos." });
       return;
     }
-    if (sourceProductId === targetProductId) {
+    if (sourceProductIds.includes(targetProductId)) {
       res.status(400).json({ error: "El producto de origen y destino no pueden ser el mismo." });
       return;
     }
 
     const merged = await prisma.$transaction(async (tx) => {
-      const [source, target] = await Promise.all([
-        tx.product.findUniqueOrThrow({ where: { id: sourceProductId } }),
-        tx.product.findUniqueOrThrow({ where: { id: targetProductId } }),
-      ]);
+      let target = await tx.product.findUniqueOrThrow({ where: { id: targetProductId } });
 
-      const sourceColors = await tx.color.findMany({ where: { productId: source.id } });
-      const targetColors = await tx.color.findMany({ where: { productId: target.id } });
-      const targetColorByCode = new Map(targetColors.map((c) => [c.code, c]));
+      for (const sourceProductId of sourceProductIds) {
+        const source = await tx.product.findUniqueOrThrow({ where: { id: sourceProductId } });
 
-      for (const sourceColor of sourceColors) {
-        const collision = targetColorByCode.get(sourceColor.code);
-        if (collision) {
-          // Mismo código de color en ambos productos: se fusionan también
-          // los colores, moviendo sus fórmulas y cálculos al que se conserva.
-          await tx.formula.updateMany({ where: { colorId: sourceColor.id }, data: { colorId: collision.id } });
-          await tx.calculation.updateMany({
-            where: { colorId: sourceColor.id },
-            data: { colorId: collision.id, productId: target.id },
-          });
-          await tx.color.delete({ where: { id: sourceColor.id } });
-        } else {
-          await tx.color.update({ where: { id: sourceColor.id }, data: { productId: target.id } });
-          await tx.calculation.updateMany({ where: { colorId: sourceColor.id }, data: { productId: target.id } });
+        const sourceColors = await tx.color.findMany({ where: { productId: source.id } });
+        const targetColors = await tx.color.findMany({ where: { productId: target.id } });
+        const targetColorByCode = new Map(targetColors.map((c) => [c.code, c]));
+
+        for (const sourceColor of sourceColors) {
+          const collision = targetColorByCode.get(sourceColor.code);
+          if (collision) {
+            // Mismo código de color en ambos productos: se fusionan también
+            // los colores, moviendo sus fórmulas y cálculos al que se conserva.
+            await tx.formula.updateMany({ where: { colorId: sourceColor.id }, data: { colorId: collision.id } });
+            await tx.calculation.updateMany({
+              where: { colorId: sourceColor.id },
+              data: { colorId: collision.id, productId: target.id },
+            });
+            await tx.color.delete({ where: { id: sourceColor.id } });
+          } else {
+            await tx.color.update({ where: { id: sourceColor.id }, data: { productId: target.id } });
+            await tx.calculation.updateMany({ where: { colorId: sourceColor.id }, data: { productId: target.id } });
+          }
         }
+
+        await tx.productPartB.updateMany({ where: { productId: source.id }, data: { productId: target.id } });
+
+        const data: { kind?: "TWO_K" } = {};
+        if (source.kind === "TWO_K" && target.kind !== "TWO_K" && !target.kindLocked) data.kind = "TWO_K";
+        if (Object.keys(data).length > 0) target = await tx.product.update({ where: { id: target.id }, data });
+
+        await tx.product.delete({ where: { id: source.id } });
       }
 
-      await tx.productPartB.updateMany({ where: { productId: source.id }, data: { productId: target.id } });
+      if (targetName && targetName.trim()) {
+        target = await tx.product.update({ where: { id: target.id }, data: { name: targetName.trim() } });
+      }
 
-      const data: { name?: string; kind?: "TWO_K" } = {};
-      if (targetName && targetName.trim()) data.name = targetName.trim();
-      if (source.kind === "TWO_K" && target.kind !== "TWO_K" && !target.kindLocked) data.kind = "TWO_K";
-      const updatedTarget =
-        Object.keys(data).length > 0 ? await tx.product.update({ where: { id: target.id }, data }) : target;
-
-      await tx.product.delete({ where: { id: source.id } });
-
-      return updatedTarget;
+      return target;
     });
 
     res.json(merged);
