@@ -6,7 +6,7 @@ import { SearchableSelect } from "../components/SearchableSelect";
 import { money, qty, pct, roleLabel } from "../lib/format";
 
 // Secuencia de marca para gráficos categóricos: Navy -> Sky -> Purple.
-const DONUT_COLORS = ["#005192", "#008BC5", "#542C97"];
+const DONUT_COLORS = ["#003A70", "#008BC5", "#542C97"];
 
 export function Calculate() {
   const [params, setParams] = useSearchParams();
@@ -167,21 +167,6 @@ export function Calculate() {
             </div>
           )}
 
-          <div className="card p-5">
-            <div className="section-bar -mx-5 -mt-5 mb-4">Base</div>
-            <LinesTable lines={breakdown.lines.filter((l) => l.role === "BASE")} />
-          </div>
-          <div className="card p-5">
-            <div className="section-bar -mx-5 -mt-5 mb-4">Concentrados</div>
-            <LinesTable lines={breakdown.lines.filter((l) => l.role === "CONCENTRATE")} />
-          </div>
-          {breakdown.productKind === "TWO_K" && (
-            <div className="card p-5">
-              <div className="section-bar -mx-5 -mt-5 mb-4">Parte B</div>
-              <LinesTable lines={breakdown.lines.filter((l) => l.role === "PART_B")} />
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card p-5">
               <div className="section-bar -mx-5 -mt-5 mb-4">Composición del costo</div>
@@ -209,22 +194,49 @@ export function Calculate() {
               </div>
             </div>
 
-            <div className="card p-5 space-y-2 text-sm">
+            <div className="card p-5 text-sm">
               <div className="section-bar -mx-5 -mt-5 mb-4">Resumen</div>
-              <Row label="Costo Parte A (Base + Concentrados)" value={`${money(Number(breakdown.baseCost) + Number(breakdown.concentrateCost))}`} />
-              {breakdown.productKind === "TWO_K" && <Row label="Costo Parte B" value={`${money(breakdown.partBCost)}`} />}
-              <Row label="Costo Total / conjunto" value={`${money(breakdown.totalCostPerSet)}`} bold />
-              <Row label="Costo / L" value={breakdown.costPerLiter ? `${money(breakdown.costPerLiter)}` : "—"} />
-              {pricing?.pricing && (
-                <>
-                  <hr className="my-2 border-(--border-subtle)" />
-                  <Row label="Precio sugerido / L" value={`${money(pricing.pricing.sellingPricePerLiter)}`} />
-                  <Row label="Precio sugerido / conjunto" value={`${money(pricing.pricing.sellingPricePerSet)}`} bold />
-                  <Row label="Contribución" value={pct(pricing.pricing.contributionPct)} />
-                </>
-              )}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="rounded-xl bg-sky/10 p-3">
+                  <div className="text-xs text-gray-dark uppercase font-semibold">Costo / L</div>
+                  <div className="text-2xl font-bold text-navy mt-1">{breakdown.costPerLiter ? `${money(breakdown.costPerLiter)}` : "—"}</div>
+                </div>
+                <div className="rounded-xl bg-sky/10 p-3">
+                  <div className="text-xs text-gray-dark uppercase font-semibold">Precio sugerido / L</div>
+                  <div className="text-2xl font-bold text-navy mt-1">
+                    {pricing?.pricing ? `${money(pricing.pricing.sellingPricePerLiter)}` : "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Row label="Costo Parte A (Base + Concentrados)" value={`${money(Number(breakdown.baseCost) + Number(breakdown.concentrateCost))}`} />
+                {breakdown.productKind === "TWO_K" && <Row label="Costo Parte B" value={`${money(breakdown.partBCost)}`} />}
+                <Row label="Costo Total / conjunto" value={`${money(breakdown.totalCostPerSet)}`} bold />
+                {pricing?.pricing && (
+                  <>
+                    <hr className="my-2 border-(--border-subtle)" />
+                    <Row label="Precio sugerido / conjunto" value={`${money(pricing.pricing.sellingPricePerSet)}`} bold />
+                    <Row label="Contribución" value={pct(pricing.pricing.contributionPct)} />
+                  </>
+                )}
+              </div>
             </div>
           </div>
+
+          <div className="card p-5">
+            <div className="section-bar -mx-5 -mt-5 mb-4">Base</div>
+            <LinesTable lines={breakdown.lines.filter((l) => l.role === "BASE")} />
+          </div>
+          <div className="card p-5">
+            <div className="section-bar -mx-5 -mt-5 mb-4">Concentrados</div>
+            <LinesTable lines={breakdown.lines.filter((l) => l.role === "CONCENTRATE")} />
+          </div>
+          {breakdown.productKind === "TWO_K" && (
+            <div className="card p-5">
+              <div className="section-bar -mx-5 -mt-5 mb-4">Parte B</div>
+              <LinesTable lines={breakdown.lines.filter((l) => l.role === "PART_B")} />
+            </div>
+          )}
 
           <div className="card p-5">
             <div className="section-bar -mx-5 -mt-5 mb-4">Simulador de contribución</div>
