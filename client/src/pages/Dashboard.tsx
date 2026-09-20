@@ -24,7 +24,7 @@ export function Dashboard() {
 
   useEffect(() => {
     api.dashboard().then(setData);
-    api.dashboardTimeline().then(setTimeline);
+    api.dashboardTimeline().then(setTimeline).catch(() => setTimeline([]));
   }, []);
 
   if (!data) return <div className="text-gray-dark">Cargando…</div>;
@@ -55,21 +55,32 @@ export function Dashboard() {
         />
       </div>
 
-      {timeline && timeline.length > 1 && (
+      {timeline && (
         <div className="card p-5">
           <div className="section-bar -mx-5 -mt-5 mb-4">Crecimiento del catálogo</div>
-          <p className="text-xs text-gray-dark mb-3">Colores y fórmulas cargados en el sistema, acumulados por día.</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={timeline} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
-              <XAxis dataKey="day" tickFormatter={formatDay} tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} width={40} />
-              <Tooltip labelFormatter={(d) => formatDay(String(d))} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "colors" ? "Colores" : "Fórmulas")} />
-              <Line type="monotone" dataKey="colors" name="colors" stroke="#003A70" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="formulas" name="formulas" stroke="#008BC5" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {timeline.length === 0 ? (
+            <p className="text-sm text-gray-dark">Todavía no hay colores ni fórmulas cargadas.</p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-dark mb-3">Colores y fórmulas cargados en el sistema, acumulados por día.</p>
+              {timeline.length === 1 && (
+                <p className="text-xs text-violet mb-2">
+                  Todo se cargó en un solo día — con importaciones en más fechas vas a ver la tendencia completa.
+                </p>
+              )}
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={timeline} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
+                  <XAxis dataKey="day" tickFormatter={formatDay} tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} width={40} />
+                  <Tooltip labelFormatter={(d) => formatDay(String(d))} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "colors" ? "Colores" : "Fórmulas")} />
+                  <Line type="monotone" dataKey="colors" name="colors" stroke="#003A70" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="formulas" name="formulas" stroke="#008BC5" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </>
+          )}
         </div>
       )}
 
