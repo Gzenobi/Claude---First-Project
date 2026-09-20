@@ -6,7 +6,7 @@ import { detectChromascan, parseChromascanSheet } from "../import/chromascanPars
 
 const dir = path.resolve(__dirname, "../../../source-data/formulas");
 
-const files = ["AAC018.xls", "AAD704.xls", "AAE019.xls", "AAJ019_REF.xls", "CLB108.xls"];
+const files = ["AAC018.xls", "AAD704.xls", "AAE019.xls", "AAJ019_REF.xls", "CLB108.xls", "CLE000.xls"];
 
 describe("chromascanParser sobre archivos reales", () => {
   for (const file of files) {
@@ -30,6 +30,15 @@ describe("chromascanParser sobre archivos reales", () => {
       expect(galao.concentrates.length).toBeGreaterThanOrEqual(3);
     });
   }
+
+  it("ignora la fila basura '0 | 0 | 0 | 0' al final de la sección BALDE de CLE000 en vez de marcarla como error", () => {
+    const buffer = readFileSync(path.join(dir, "CLE000.xls"));
+    const wb = parseWorkbook("CLE000.xls", buffer);
+    const outcome = parseChromascanSheet("CLE000.xls", wb.sheets[0]);
+    const [, balde] = outcome.formulas;
+    expect(balde.concentrates.some((c) => c.code === "0")).toBe(false);
+    expect(balde.concentrates).toHaveLength(4);
+  });
 
   it("extrae metadatos correctos de AAC018 (Branco / RAL 9001 / Intergard 345 / base AAA011)", () => {
     const buffer = readFileSync(path.join(dir, "AAC018.xls"));

@@ -115,6 +115,11 @@ export function parseChromascanSheet(fileName: string, sheet: ParsedSheet): Form
       if (cellText(rows[r][0]).match(FORMULA_MARKER)) break;
       const qty = cellNumber(rows[r][5]);
       if (qty === null) {
+        // Fila basura frecuente al final de la sección en archivos reales:
+        // "0" no es un código de componente Chromascan real (todos son
+        // alfanuméricos, ej. GVA126) — combinado con cantidad vacía, es un
+        // artefacto del exportador, no un dato a corregir por el usuario.
+        if (code === "0") continue;
         issues.push({
           fileName,
           rowRef: `${colorCode} / ${code}`,
