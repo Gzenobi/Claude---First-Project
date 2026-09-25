@@ -37,6 +37,12 @@
       "skillPath": "skills/figma/SKILL.md",
       "computedHash": "036ab209910487e3bfeba7423318d1c7576f3179fe4d69551621ac95c72216d3"
     },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "913b9d37d0d54047dd65222bb8c67b2bf04e3cb87dcad1729068d7a8b2c8c396"
+    },
     "frost-sequence-camera-orbit": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",
