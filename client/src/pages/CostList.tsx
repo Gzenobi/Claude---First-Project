@@ -98,7 +98,7 @@ export function CostList() {
         </div>
       </div>
 
-      <input className="input w-80" placeholder="Buscar producto o color..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <input className="input w-80" aria-label="Buscar producto o color" placeholder="Buscar producto o color..." value={search} onChange={(e) => setSearch(e.target.value)} />
 
       <div className="card overflow-x-auto">
         <table className="w-full text-sm min-w-[1100px]">
@@ -137,6 +137,7 @@ export function CostList() {
                     <input
                       autoFocus
                       className="input w-20 text-right"
+                      aria-label="Contribución (%)"
                       defaultValue={(Number(c.contributionPct) * 100).toString()}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveContribution(c.id)}

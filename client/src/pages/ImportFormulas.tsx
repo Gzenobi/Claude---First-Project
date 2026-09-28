@@ -426,11 +426,11 @@ function MappingWizard({
         <div className="grid grid-cols-2 gap-3">
           {fields.map((f) => (
             <div key={f.key}>
-              <label className="text-xs text-gray-dark">
+              <label htmlFor={`formmap-${f.key}`} className="text-xs text-gray-dark">
                 {f.label} {f.required && <span className="text-fuchsia">*</span>}
               </label>
               {headers.length > 0 ? (
-                <select className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })}>
+                <select id={`formmap-${f.key}`} className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })}>
                   <option value="">— No mapear —</option>
                   {headers.map((h, i) => (
                     <option key={i} value={h}>
@@ -439,7 +439,7 @@ function MappingWizard({
                   ))}
                 </select>
               ) : (
-                <input className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })} placeholder="Nombre de columna" />
+                <input id={`formmap-${f.key}`} className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })} placeholder="Nombre de columna" />
               )}
             </div>
           ))}

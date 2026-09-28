@@ -94,9 +94,13 @@ export function Calculate() {
 
       <div className="card p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-semibold text-gray-dark uppercase">Material</label>
+          <label id="calc-product-label" htmlFor="calc-product" className="text-xs font-semibold text-gray-dark uppercase">
+            Material
+          </label>
           <div className="mt-1">
             <SearchableSelect
+              id="calc-product"
+              labelledBy="calc-product-label"
               placeholder="Seleccione un producto..."
               value={productId}
               onChange={(v) => {
@@ -108,9 +112,13 @@ export function Calculate() {
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-dark uppercase">Color</label>
+          <label id="calc-color-label" htmlFor="calc-color" className="text-xs font-semibold text-gray-dark uppercase">
+            Color
+          </label>
           <div className="mt-1">
             <SearchableSelect
+              id="calc-color"
+              labelledBy="calc-color-label"
               placeholder={productId ? "Seleccione un color..." : "Elija un material primero"}
               disabled={!productId}
               value={colorId}
@@ -121,16 +129,19 @@ export function Calculate() {
         </div>
         {formulas.length > 1 && (
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-dark uppercase">Fórmula</label>
+            <span id="calc-formula-label" className="text-xs font-semibold text-gray-dark uppercase">
+              Fórmula
+            </span>
             <p className="text-xs text-gray-dark mb-1">
               Este color tiene {formulas.length} fórmulas disponibles (distintos formatos, revisiones o plantas). Elija cuál usar.
             </p>
-            <div className="flex flex-col gap-1.5 mt-1">
+            <div className="flex flex-col gap-1.5 mt-1" role="group" aria-labelledby="calc-formula-label">
               {formulas.map((f, i) => {
                 const secondary = f.version ? `Versión: ${f.version}` : f.sourceFileName ? f.sourceFileName : `Fórmula ${i + 1}`;
                 return (
                   <button
                     key={f.id}
+                    aria-pressed={formulaId === f.id}
                     className={`text-left px-3 py-2 rounded border ${
                       formulaId === f.id ? "border-sky bg-sky/10" : "border-(--border-subtle) hover:bg-(--bg-app)"
                     }`}
@@ -151,13 +162,13 @@ export function Calculate() {
       {breakdown && (
         <>
           {breakdown.isIncomplete && (
-            <div className="card p-4 border-l-4 border-l-fuchsia bg-fuchsia/5">
+            <div role="alert" className="card p-4 border-l-4 border-l-fuchsia bg-fuchsia/5">
               <div className="badge badge-error mb-1">CÁLCULO INCOMPLETO</div>
               <div className="text-sm text-gray-dark">{breakdown.incompleteReason}</div>
             </div>
           )}
           {!breakdown.isIncomplete && breakdown.formulaWarnings.length > 0 && (
-            <div className="card p-4 border-l-4 border-l-violet bg-violet/5">
+            <div role="status" className="card p-4 border-l-4 border-l-violet bg-violet/5">
               <div className="badge badge-warning mb-1">ADVERTENCIA</div>
               {breakdown.formulaWarnings.map((w, i) => (
                 <div key={i} className="text-sm text-gray-dark">
@@ -243,6 +254,7 @@ export function Calculate() {
             <div className="flex items-center gap-4">
               <input
                 type="range"
+                aria-label="Contribución"
                 min={0.1}
                 max={0.85}
                 step={0.01}
@@ -252,6 +264,7 @@ export function Calculate() {
               />
               <input
                 className="input w-24 text-center"
+                aria-label="Contribución (%)"
                 value={pct(contribution)}
                 onChange={(e) => {
                   const n = parseFloat(e.target.value.replace("%", "").replace(",", "."));
@@ -288,7 +301,9 @@ export function Calculate() {
             <button className="btn-primary" disabled={adding || breakdown.isIncomplete} onClick={addToList}>
               {adding ? "Agregando..." : "+ Agregar a Lista"}
             </button>
-            {message && <span className="text-sm text-gray-dark">{message}</span>}
+            <span role="status" className="text-sm text-gray-dark">
+              {message}
+            </span>
           </div>
         </>
       )}

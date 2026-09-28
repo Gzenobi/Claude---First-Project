@@ -39,6 +39,7 @@ export function Header() {
       <div className="relative w-full max-w-md" ref={boxRef}>
         <input
           className="input w-full"
+          aria-label="Búsqueda global"
           style={{ paddingLeft: "2.25rem" }}
           placeholder="Buscar producto, color (ej. RAL 5015), base o concentrado..."
           value={q}

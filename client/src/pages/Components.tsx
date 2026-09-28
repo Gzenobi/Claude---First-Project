@@ -52,24 +52,24 @@ export function Components() {
       {showNew && (
         <div className="card p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           <div>
-            <label className="text-xs text-gray-dark">Código</label>
-            <input className="input w-full" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+            <label htmlFor="comp-code" className="text-xs text-gray-dark">Código</label>
+            <input id="comp-code" className="input w-full" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark">Descripción</label>
-            <input className="input w-full" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <label htmlFor="comp-description" className="text-xs text-gray-dark">Descripción</label>
+            <input id="comp-description" className="input w-full" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark">Tipo</label>
-            <select className="input w-full" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+            <label htmlFor="comp-type" className="text-xs text-gray-dark">Tipo</label>
+            <select id="comp-type" className="input w-full" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
               <option value="BASE">Base</option>
               <option value="CONCENTRATE">Concentrado</option>
               <option value="PART_B">Parte B</option>
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-dark">Densidad (kg/L, opcional)</label>
-            <input className="input w-full" placeholder="ej. 1.25" value={form.density} onChange={(e) => setForm({ ...form, density: e.target.value })} />
+            <label htmlFor="comp-density" className="text-xs text-gray-dark">Densidad (kg/L, opcional)</label>
+            <input id="comp-density" className="input w-full" placeholder="ej. 1.25" value={form.density} onChange={(e) => setForm({ ...form, density: e.target.value })} />
           </div>
           <button className="btn-primary" onClick={createComponent}>
             Guardar
@@ -132,12 +132,12 @@ export function Components() {
                     <td colSpan={7} className="p-3">
                       <div className="flex flex-wrap gap-2 items-end">
                         <div>
-                          <label className="text-xs text-gray-dark">Monto</label>
-                          <input className="input w-28" value={costForm.amount} onChange={(e) => setCostForm({ ...costForm, amount: e.target.value })} />
+                          <label htmlFor="cost-amount" className="text-xs text-gray-dark">Monto</label>
+                          <input id="cost-amount" className="input w-28" value={costForm.amount} onChange={(e) => setCostForm({ ...costForm, amount: e.target.value })} />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-dark">Base de costo</label>
-                          <select className="input" value={costForm.costBasis} onChange={(e) => setCostForm({ ...costForm, costBasis: e.target.value })}>
+                          <label htmlFor="cost-basis" className="text-xs text-gray-dark">Base de costo</label>
+                          <select id="cost-basis" className="input" value={costForm.costBasis} onChange={(e) => setCostForm({ ...costForm, costBasis: e.target.value })}>
                             <option value="PER_LITER">Por litro</option>
                             <option value="PER_KG">Por kg</option>
                             <option value="PER_PACKAGE">Por envase</option>
@@ -146,12 +146,12 @@ export function Components() {
                         {costForm.costBasis === "PER_PACKAGE" && (
                           <>
                             <div>
-                              <label className="text-xs text-gray-dark">Tamaño envase</label>
-                              <input className="input w-24" value={costForm.packageSize} onChange={(e) => setCostForm({ ...costForm, packageSize: e.target.value })} />
+                              <label htmlFor="cost-package-size" className="text-xs text-gray-dark">Tamaño envase</label>
+                              <input id="cost-package-size" className="input w-24" value={costForm.packageSize} onChange={(e) => setCostForm({ ...costForm, packageSize: e.target.value })} />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-dark">Unidad</label>
-                              <select className="input" value={costForm.packageUnit} onChange={(e) => setCostForm({ ...costForm, packageUnit: e.target.value })}>
+                              <label htmlFor="cost-package-unit" className="text-xs text-gray-dark">Unidad</label>
+                              <select id="cost-package-unit" className="input" value={costForm.packageUnit} onChange={(e) => setCostForm({ ...costForm, packageUnit: e.target.value })}>
                                 <option>L</option>
                                 <option>ML</option>
                                 <option>KG</option>
