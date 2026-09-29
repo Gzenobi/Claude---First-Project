@@ -15,7 +15,10 @@
   --color-fuchsia-light: #ffb3d4;
   --color-violet-light: #d292cc;
 
-  --color-gray-dark: #868688;
+  /* #868688 medía 3.4-3.6:1 sobre blanco (falla WCAG AA, mínimo 4.5:1 para
+     texto normal) — oscurecido a #5b6b7a, que sí pasa (~5.5:1), manteniendo
+     el mismo tono neutro. */
+  --color-gray-dark: #5b6b7a;
   --color-gray-light: #b7b9ba;
 
   /* Arial es la tipografía de marca para Office/HTML de uso interno; Helvetica

@@ -20,11 +20,29 @@ function formatDay(day: string) {
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [timeline, setTimeline] = useState<DashboardTimelinePoint[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    api.dashboard().then(setData);
+    setLoadError(false);
+    api
+      .dashboard()
+      .then(setData)
+      .catch(() => setLoadError(true));
     api.dashboardTimeline().then(setTimeline).catch(() => setTimeline([]));
-  }, []);
+  }, [reloadKey]);
+
+  if (loadError) {
+    return (
+      <div className="card p-8 text-center max-w-md mx-auto mt-12">
+        <p className="text-sm text-navy font-medium">No se pudo cargar el Dashboard.</p>
+        <p className="text-xs text-gray-dark mt-1">Revisá tu conexión e intentá de nuevo.</p>
+        <button className="btn-primary mt-4" onClick={() => setReloadKey((k) => k + 1)}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   if (!data) return <div className="text-gray-dark">Cargando…</div>;
 

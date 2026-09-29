@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type SearchResults } from "../api";
-import { IconSearch } from "./icons";
+import { IconSearch, IconMenu } from "./icons";
 
-export function Header() {
+export function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [open, setOpen] = useState(false);
@@ -35,7 +35,10 @@ export function Header() {
   const hasResults = results && (results.products.length || results.colors.length || results.components.length);
 
   return (
-    <header className="h-16 shrink-0 bg-white border-b border-(--border-subtle) flex items-center px-6 gap-4">
+    <header className="h-16 shrink-0 bg-white border-b border-(--border-subtle) flex items-center px-4 md:px-6 gap-3 md:gap-4">
+      <button className="md:hidden text-navy shrink-0" onClick={onOpenSidebar} aria-label="Abrir menú">
+        <IconMenu className="w-6 h-6" />
+      </button>
       <div className="relative w-full max-w-md" ref={boxRef}>
         <input
           className="input w-full"
@@ -109,9 +112,11 @@ export function Header() {
           </div>
         )}
       </div>
-      <div className="ml-auto flex items-center gap-4 text-sm text-gray-dark">
-        <span className="badge badge-ok">DEMO DATA incluida</span>
-        <img src="/logos/international-blue.png" alt="International" className="h-7 w-auto" />
+      <div className="ml-auto flex items-center gap-3 md:gap-4 text-sm text-gray-dark shrink-0">
+        <span className="hidden sm:inline-flex">
+          <span className="badge badge-ok">DEMO DATA incluida</span>
+        </span>
+        <img src="/logos/international-blue.png" alt="International" className="h-6 md:h-7 w-auto" />
       </div>
     </header>
   );
