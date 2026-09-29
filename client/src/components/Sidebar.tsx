@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
+import type { RefObject } from "react";
 import {
   IconDashboard,
   IconCalculate,
@@ -27,14 +28,26 @@ const items = [
   { to: "/configuracion", label: "Configuración", icon: IconSettings },
 ];
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({
+  open,
+  onClose,
+  closeButtonRef,
+}: {
+  open: boolean;
+  onClose: () => void;
+  closeButtonRef: RefObject<HTMLButtonElement | null>;
+}) {
   return (
     <>
-      {open && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={onClose} aria-hidden="true" />}
+      <div
+        className={clsx("fixed inset-0 bg-black/40 z-30 md:hidden transition-opacity duration-200 pointer-events-none", open && "opacity-100 pointer-events-auto", !open && "opacity-0")}
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <aside
         className={clsx(
-          "w-64 shrink-0 bg-navy text-white flex flex-col h-full fixed inset-y-0 left-0 z-40 transition-transform duration-200 md:relative md:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
+          "w-64 shrink-0 bg-navy text-white flex flex-col h-full fixed inset-y-0 left-0 z-40 transition-transform duration-200 md:relative md:translate-x-0 md:visible",
+          open ? "translate-x-0" : "-translate-x-full invisible"
         )}
       >
         <div className="px-5 py-6 border-b border-white/10 flex items-start justify-between gap-2">
@@ -43,7 +56,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <div className="text-lg font-bold leading-tight">Cálculo de Costo -<br />Chromascan</div>
             <div className="text-xs text-white/70 mt-1">International Paint | Costing &amp; Pricing Tool</div>
           </div>
-          <button className="md:hidden text-white/70 hover:text-white shrink-0" onClick={onClose} aria-label="Cerrar menú">
+          <button ref={closeButtonRef} className="md:hidden text-white/70 hover:text-white shrink-0" onClick={onClose} aria-label="Cerrar menú">
             <IconClose className="w-5 h-5" />
           </button>
         </div>

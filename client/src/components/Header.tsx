@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type SearchResults } from "../api";
 import { IconSearch, IconMenu } from "./icons";
 
-export function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
+export function Header({
+  onOpenSidebar,
+  menuButtonRef,
+}: {
+  onOpenSidebar: () => void;
+  menuButtonRef: RefObject<HTMLButtonElement | null>;
+}) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [open, setOpen] = useState(false);
@@ -36,7 +42,7 @@ export function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
 
   return (
     <header className="h-16 shrink-0 bg-white border-b border-(--border-subtle) flex items-center px-4 md:px-6 gap-3 md:gap-4">
-      <button className="md:hidden text-navy shrink-0" onClick={onOpenSidebar} aria-label="Abrir menú">
+      <button ref={menuButtonRef} className="md:hidden text-navy shrink-0" onClick={onOpenSidebar} aria-label="Abrir menú">
         <IconMenu className="w-6 h-6" />
       </button>
       <div className="relative w-full max-w-md" ref={boxRef}>
