@@ -47,7 +47,7 @@ export function Formulas() {
       </div>
 
       <div className="flex gap-3 items-center">
-        <select className="input" value={productId} onChange={(e) => setProductId(e.target.value)}>
+        <select className="input" aria-label="Producto" value={productId} onChange={(e) => setProductId(e.target.value)}>
           <option value="">Seleccione producto...</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
@@ -55,7 +55,7 @@ export function Formulas() {
             </option>
           ))}
         </select>
-        <select className="input" value={colorId} onChange={(e) => setColorId(e.target.value)} disabled={!productId}>
+        <select className="input" aria-label="Color" value={colorId} onChange={(e) => setColorId(e.target.value)} disabled={!productId}>
           <option value="">Seleccione color...</option>
           {colors.map((c) => (
             <option key={c.id} value={c.id}>
@@ -180,19 +180,23 @@ function NewColorForm({ productId, onCreated, onCancel }: { productId: string; o
       <h3 className="font-semibold text-navy">Nuevo color</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs text-gray-dark">Código *</label>
-          <input className="input w-full" value={code} onChange={(e) => setCode(e.target.value)} />
+          <label htmlFor="color-code" className="text-xs text-gray-dark">Código *</label>
+          <input id="color-code" className="input w-full" value={code} onChange={(e) => setCode(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-dark">Nombre</label>
-          <input className="input w-full" value={name} onChange={(e) => setName(e.target.value)} />
+          <label htmlFor="color-name" className="text-xs text-gray-dark">Nombre</label>
+          <input id="color-name" className="input w-full" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-dark">Estándar (ej. RAL 9001)</label>
-          <input className="input w-full" value={standard} onChange={(e) => setStandard(e.target.value)} />
+          <label htmlFor="color-standard" className="text-xs text-gray-dark">Estándar (ej. RAL 9001)</label>
+          <input id="color-standard" className="input w-full" value={standard} onChange={(e) => setStandard(e.target.value)} />
         </div>
       </div>
-      {error && <div className="text-sm text-fuchsia">{error}</div>}
+      {error && (
+        <div role="alert" className="text-sm text-fuchsia">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <button className="btn-primary" disabled={saving} onClick={save}>
           {saving ? "Guardando..." : "Guardar color"}
@@ -282,14 +286,14 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs text-gray-dark">Versión / nota (opcional)</label>
-          <input className="input w-full" value={version} onChange={(e) => setVersion(e.target.value)} />
+          <label htmlFor="formula-version" className="text-xs text-gray-dark">Versión / nota (opcional)</label>
+          <input id="formula-version" className="input w-full" value={version} onChange={(e) => setVersion(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-dark">Volumen comercial *</label>
+          <label htmlFor="formula-volume" className="text-xs text-gray-dark">Volumen comercial *</label>
           <div className="flex gap-2">
-            <input className="input w-full" value={commercialVolume} onChange={(e) => setCommercialVolume(e.target.value)} />
-            <select className="input" value={commercialVolumeUnit} onChange={(e) => setCommercialVolumeUnit(e.target.value)}>
+            <input id="formula-volume" className="input w-full" value={commercialVolume} onChange={(e) => setCommercialVolume(e.target.value)} />
+            <select className="input" aria-label="Unidad del volumen comercial" value={commercialVolumeUnit} onChange={(e) => setCommercialVolumeUnit(e.target.value)}>
               {UNITS.map((u) => (
                 <option key={u} value={u}>
                   {u}
@@ -301,10 +305,14 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
       </div>
 
       <div>
-        <label className="text-xs text-gray-dark">Base *</label>
+        <label id="formula-base-label" htmlFor="formula-base" className="text-xs text-gray-dark">
+          Base *
+        </label>
         <div className="flex gap-2 mt-1">
           <div className="flex-1">
             <SearchableSelect
+              id="formula-base"
+              labelledBy="formula-base-label"
               placeholder="Seleccione componente base..."
               value={baseComponentId}
               onChange={setBaseComponentId}
@@ -314,11 +322,12 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
           <input
             className="input w-32"
             placeholder="Cantidad"
+            aria-label="Cantidad de base"
             value={baseQuantity}
             disabled={fillToVolume}
             onChange={(e) => setBaseQuantity(e.target.value)}
           />
-          <select className="input" value={baseUnit} onChange={(e) => setBaseUnit(e.target.value)}>
+          <select className="input" aria-label="Unidad de la base" value={baseUnit} onChange={(e) => setBaseUnit(e.target.value)}>
             {UNITS.map((u) => (
               <option key={u} value={u}>
                 {u}
@@ -334,12 +343,15 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
       </div>
 
       <div>
-        <label className="text-xs text-gray-dark">Concentrados</label>
-        <div className="space-y-2 mt-1">
-          {concentrates.map((row) => (
+        <span id="formula-concentrates-label" className="text-xs text-gray-dark">
+          Concentrados
+        </span>
+        <div className="space-y-2 mt-1" role="group" aria-labelledby="formula-concentrates-label">
+          {concentrates.map((row, idx) => (
             <div key={row.key} className="flex gap-2 items-center">
               <div className="flex-1">
                 <SearchableSelect
+                  ariaLabel={`Concentrado ${idx + 1}`}
                   placeholder="Seleccione concentrado..."
                   value={row.componentId || null}
                   onChange={(v) => updateConcentrateRow(row.key, { componentId: v })}
@@ -349,17 +361,18 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
               <input
                 className="input w-32"
                 placeholder="Cantidad"
+                aria-label={`Cantidad del concentrado ${idx + 1}`}
                 value={row.quantity}
                 onChange={(e) => updateConcentrateRow(row.key, { quantity: e.target.value })}
               />
-              <select className="input" value={row.unit} onChange={(e) => updateConcentrateRow(row.key, { unit: e.target.value })}>
+              <select className="input" aria-label={`Unidad del concentrado ${idx + 1}`} value={row.unit} onChange={(e) => updateConcentrateRow(row.key, { unit: e.target.value })}>
                 {UNITS.map((u) => (
                   <option key={u} value={u}>
                     {u}
                   </option>
                 ))}
               </select>
-              <button className="text-fuchsia text-xs" onClick={() => removeConcentrateRow(row.key)}>
+              <button className="text-fuchsia text-xs" aria-label={`Quitar concentrado ${idx + 1}`} onClick={() => removeConcentrateRow(row.key)}>
                 Quitar
               </button>
             </div>
@@ -370,7 +383,11 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
         </button>
       </div>
 
-      {error && <div className="text-sm text-fuchsia">{error}</div>}
+      {error && (
+        <div role="alert" className="text-sm text-fuchsia">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <button className="btn-primary" disabled={saving} onClick={save}>
           {saving ? "Guardando..." : "Guardar fórmula"}

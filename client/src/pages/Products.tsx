@@ -130,12 +130,12 @@ export function Products() {
       {showNew && (
         <div className="card p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
           <div>
-            <label className="text-xs text-gray-dark">Código</label>
-            <input className="input w-full" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+            <label htmlFor="prod-code" className="text-xs text-gray-dark">Código</label>
+            <input id="prod-code" className="input w-full" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark">Nombre</label>
-            <input className="input w-full" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <label htmlFor="prod-name" className="text-xs text-gray-dark">Nombre</label>
+            <input id="prod-name" className="input w-full" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <button className="btn-primary" onClick={createProduct}>
             Guardar
@@ -179,6 +179,7 @@ export function Products() {
                       <div className="flex items-center gap-2">
                         <input
                           className="input text-lg font-semibold text-navy py-1"
+                          aria-label="Nombre del producto"
                           value={nameDraft}
                           autoFocus
                           onChange={(e) => setNameDraft(e.target.value)}
@@ -232,8 +233,12 @@ export function Products() {
                       Usalo cuando dos nombres distintos son en realidad la misma marca (ej. un typo).
                     </p>
                     <div>
-                      <label className="text-xs text-gray-dark">Fusionar con</label>
+                      <label id="merge-target-label" htmlFor="merge-target" className="text-xs text-gray-dark">
+                        Fusionar con
+                      </label>
                       <SearchableSelect
+                        id="merge-target"
+                        labelledBy="merge-target-label"
                         placeholder="Seleccione el producto que se conserva..."
                         value={mergeTargetId}
                         onChange={(v) => {
@@ -245,8 +250,11 @@ export function Products() {
                     </div>
                     {mergeTargetId && (
                       <div>
-                        <label className="text-xs text-gray-dark">Nombre final (opcional, si ninguno de los dos es el correcto)</label>
+                        <label htmlFor="merge-name" className="text-xs text-gray-dark">
+                          Nombre final (opcional, si ninguno de los dos es el correcto)
+                        </label>
                         <input
+                          id="merge-name"
                           className="input w-full"
                           placeholder={products.find((p) => p.id === mergeTargetId)?.name}
                           value={mergeName}
@@ -287,8 +295,11 @@ export function Products() {
                       sola vez. Los productos elegidos se eliminan al terminar.
                     </p>
                     <div>
-                      <label className="text-xs text-gray-dark">Buscar productos para fusionar dentro de {selected.name}</label>
+                      <label htmlFor="bulk-search" className="text-xs text-gray-dark">
+                        Buscar productos para fusionar dentro de {selected.name}
+                      </label>
                       <input
+                        id="bulk-search"
                         className="input w-full"
                         placeholder="Escriba para filtrar..."
                         value={bulkSearch}
@@ -335,8 +346,11 @@ export function Products() {
                       <p className="text-xs text-sky font-medium">{bulkSourceIds.length} producto(s) seleccionado(s) para fusionar.</p>
                     )}
                     <div>
-                      <label className="text-xs text-gray-dark">Nombre final (opcional)</label>
+                      <label htmlFor="bulk-name" className="text-xs text-gray-dark">
+                        Nombre final (opcional)
+                      </label>
                       <input
+                        id="bulk-name"
                         className="input w-full"
                         placeholder={selected.name}
                         value={bulkName}

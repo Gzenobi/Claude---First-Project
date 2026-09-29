@@ -131,10 +131,10 @@ export function ImportCosts() {
             ))}
           </ul>
           <div className="mt-3 text-sm">
-            <label className="text-xs text-gray-dark uppercase block mb-1">
+            <label htmlFor="import-cost-source" className="text-xs text-gray-dark uppercase block mb-1">
               Costo a usar (solo aplica a planillas maestras SAP detectadas automáticamente)
             </label>
-            <select className="input" value={costSource} onChange={(e) => setCostSource(e.target.value as "CKM3_USD_LTR" | "COSTO_UNIDAD")}>
+            <select id="import-cost-source" className="input" value={costSource} onChange={(e) => setCostSource(e.target.value as "CKM3_USD_LTR" | "COSTO_UNIDAD")}>
               <option value="CKM3_USD_LTR">Costo CKM3 USD/Litro (recomendado — ya normalizado)</option>
               <option value="COSTO_UNIDAD">Costo por unidad (envase) en la moneda declarada</option>
             </select>
@@ -209,7 +209,7 @@ export function ImportCosts() {
             </tbody>
           </table>
           <div className="flex items-center gap-3">
-            <input className="input" placeholder="Etiqueta de esta versión de costos (opcional)" value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} />
+            <input className="input" aria-label="Etiqueta de esta versión de costos (opcional)" placeholder="Etiqueta de esta versión de costos (opcional)" value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} />
             <button className="btn-primary" disabled={busy} onClick={commit}>
               {busy ? "Importando..." : "Confirmar importación"}
             </button>
@@ -267,10 +267,10 @@ function CostMappingWizard({
         <div className="grid grid-cols-2 gap-3">
           {fields.map((f) => (
             <div key={f.key}>
-              <label className="text-xs text-gray-dark">
+              <label htmlFor={`costmap-${f.key}`} className="text-xs text-gray-dark">
                 {f.label} {f.required && <span className="text-fuchsia">*</span>}
               </label>
-              <select className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })}>
+              <select id={`costmap-${f.key}`} className="input w-full" value={m[f.key]} onChange={(e) => setM({ ...m, [f.key]: e.target.value })}>
                 <option value="">— No mapear —</option>
                 {headers.map((h, i) => (
                   <option key={i} value={h}>

@@ -30,32 +30,33 @@ export function SettingsPage() {
         <h2 className="font-semibold text-navy">General</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-dark uppercase">Contribución por defecto (%)</label>
+            <label htmlFor="settings-contribution" className="text-xs text-gray-dark uppercase">Contribución por defecto (%)</label>
             <input
+              id="settings-contribution"
               className="input w-full"
               value={(Number(settings.defaultContributionPct) * 100).toString()}
               onChange={(e) => setSettings({ ...settings, defaultContributionPct: (Number(e.target.value) / 100).toString() })}
             />
           </div>
           <div>
-            <label className="text-xs text-gray-dark uppercase">Moneda</label>
+            <span className="text-xs text-gray-dark uppercase">Moneda</span>
             <div className="input w-full bg-(--bg-app) text-gray-dark">USD</div>
           </div>
           <div>
-            <label className="text-xs text-gray-dark uppercase">Decimales — cantidades</label>
-            <input type="number" className="input w-full" value={settings.qtyDecimals} onChange={(e) => setSettings({ ...settings, qtyDecimals: Number(e.target.value) })} />
+            <label htmlFor="settings-qty-decimals" className="text-xs text-gray-dark uppercase">Decimales — cantidades</label>
+            <input id="settings-qty-decimals" type="number" className="input w-full" value={settings.qtyDecimals} onChange={(e) => setSettings({ ...settings, qtyDecimals: Number(e.target.value) })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark uppercase">Decimales — costo unitario</label>
-            <input type="number" className="input w-full" value={settings.unitCostDecimals} onChange={(e) => setSettings({ ...settings, unitCostDecimals: Number(e.target.value) })} />
+            <label htmlFor="settings-unit-decimals" className="text-xs text-gray-dark uppercase">Decimales — costo unitario</label>
+            <input id="settings-unit-decimals" type="number" className="input w-full" value={settings.unitCostDecimals} onChange={(e) => setSettings({ ...settings, unitCostDecimals: Number(e.target.value) })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark uppercase">Decimales — totales</label>
-            <input type="number" className="input w-full" value={settings.totalDecimals} onChange={(e) => setSettings({ ...settings, totalDecimals: Number(e.target.value) })} />
+            <label htmlFor="settings-total-decimals" className="text-xs text-gray-dark uppercase">Decimales — totales</label>
+            <input id="settings-total-decimals" type="number" className="input w-full" value={settings.totalDecimals} onChange={(e) => setSettings({ ...settings, totalDecimals: Number(e.target.value) })} />
           </div>
           <div>
-            <label className="text-xs text-gray-dark uppercase">Tamaño máximo de archivo (MB)</label>
-            <input type="number" className="input w-full" value={settings.maxFileSizeMb} onChange={(e) => setSettings({ ...settings, maxFileSizeMb: Number(e.target.value) })} />
+            <label htmlFor="settings-max-file" className="text-xs text-gray-dark uppercase">Tamaño máximo de archivo (MB)</label>
+            <input id="settings-max-file" type="number" className="input w-full" value={settings.maxFileSizeMb} onChange={(e) => setSettings({ ...settings, maxFileSizeMb: Number(e.target.value) })} />
           </div>
         </div>
         <button className="btn-primary" onClick={save}>
