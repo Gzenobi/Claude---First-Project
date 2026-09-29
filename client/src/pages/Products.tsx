@@ -23,6 +23,8 @@ export function Products() {
   const [nameDraft, setNameDraft] = useState("");
   const [nameBusy, setNameBusy] = useState(false);
 
+  const maxColorCount = products.reduce((max, p) => Math.max(max, p.colorCount), 0);
+
   function load() {
     api.products.list().then(setProducts);
   }
@@ -151,9 +153,16 @@ export function Products() {
                 className={`w-full text-left px-4 py-3 border-b border-(--border-subtle) hover:bg-(--bg-app) ${selected?.id === p.id ? "bg-sky/10" : ""}`}
               >
                 <div className="font-medium">{p.name}</div>
-                <div className="text-xs text-gray-dark flex gap-2">
+                <div className="text-xs text-gray-dark flex items-center gap-2 mt-1">
                   <span>{p.code}</span>
+                  <span>·</span>
                   <span>{p.colorCount} color(es)</span>
+                  <span className="flex-1 h-1 rounded-full bg-(--border-subtle) overflow-hidden max-w-[4rem]">
+                    <span
+                      className="block h-full bg-sky rounded-full"
+                      style={{ width: `${maxColorCount > 0 ? Math.max(4, (p.colorCount / maxColorCount) * 100) : 0}%` }}
+                    />
+                  </span>
                 </div>
               </button>
             ))}

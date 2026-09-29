@@ -148,6 +148,17 @@ export function Calculate() {
         )}
       </div>
 
+      {!breakdown && (
+        <div className="card p-8 text-center">
+          <p className="text-sm text-navy font-medium">
+            {productId ? "Elija un color para ver el costo y precio sugerido." : "Elija un material para empezar."}
+          </p>
+          <p className="text-xs text-gray-dark mt-1">
+            El costo por litro y el precio sugerido se calculan a partir de la fórmula asociada a ese material y color.
+          </p>
+        </div>
+      )}
+
       {breakdown && (
         <>
           {breakdown.isIncomplete && (

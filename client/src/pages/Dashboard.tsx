@@ -3,12 +3,11 @@ import { Link } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { api, type DashboardData, type DashboardTimelinePoint } from "../api";
 
-function Kpi({ label, value, tone, hint }: { label: string; value: string | number; tone?: "warning" | "ok"; hint?: string }) {
+function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="card p-5">
-      <div className="text-xs font-semibold text-gray-dark uppercase tracking-wide">{label}</div>
-      <div className={`text-3xl font-bold mt-2 ${tone === "warning" ? "text-fuchsia" : "text-navy"}`}>{value}</div>
-      {hint && <div className="text-xs text-gray-dark mt-1">{hint}</div>}
+    <div className="flex-1 min-w-[7rem]">
+      <div className="text-xl font-bold text-navy">{value}</div>
+      <div className="text-xs text-gray-dark mt-0.5">{label}</div>
     </div>
   );
 }
@@ -36,23 +35,40 @@ export function Dashboard() {
         <p className="text-sm text-gray-dark mt-1">Vista general de productos, colores, fórmulas y costos cargados en el sistema.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi label="Productos cargados" value={data.productCount} />
-        <Kpi label="Colores disponibles" value={data.colorCount} />
-        <Kpi label="Fórmulas disponibles" value={data.formulaCount} />
-        <Kpi label="Productos 2K" value={data.twoKCount} />
-        <Kpi label="Bases" value={data.baseCount} />
-        <Kpi label="Concentrados" value={data.concentrateCount} />
-        <Kpi
-          label="Última actualización de costos"
-          value={data.lastCostUpdate ? new Date(data.lastCostUpdate).toLocaleDateString("es-AR") : "Sin datos"}
-        />
-        <Kpi
-          label="Fórmulas con errores"
-          value={data.formulasWithErrors}
-          tone={data.formulasWithErrors > 0 ? "warning" : "ok"}
-          hint={data.formulasWithErrors > 0 ? "Falta costo de al menos un componente" : "Todo OK"}
-        />
+      {data.formulasWithErrors > 0 ? (
+        <div className="card p-6 border-l-4 border-fuchsia flex items-center justify-between gap-6 flex-wrap">
+          <div>
+            <div className="text-4xl font-bold text-fuchsia leading-none">{data.formulasWithErrors}</div>
+            <p className="text-sm text-navy font-medium mt-2">
+              {data.formulasWithErrors === 1 ? "Fórmula bloqueada" : "Fórmulas bloqueadas"} por falta de costo de al menos un
+              componente.
+            </p>
+          </div>
+          {data.topMissingCostComponents.length > 0 && (
+            <Link to="/componentes" className="btn-primary shrink-0">
+              Cargar costos faltantes
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="card p-6 border-l-4 border-sky">
+          <p className="text-sm text-navy font-medium">Todas las fórmulas tienen costo completo — nada bloqueado.</p>
+        </div>
+      )}
+
+      <div className="card p-5">
+        <div className="flex flex-wrap gap-y-4">
+          <Stat label="Productos cargados" value={data.productCount} />
+          <Stat label="Productos 2K" value={data.twoKCount} />
+          <Stat label="Colores disponibles" value={data.colorCount} />
+          <Stat label="Fórmulas disponibles" value={data.formulaCount} />
+          <Stat label="Bases" value={data.baseCount} />
+          <Stat label="Concentrados" value={data.concentrateCount} />
+          <Stat
+            label="Última actualización de costos"
+            value={data.lastCostUpdate ? new Date(data.lastCostUpdate).toLocaleDateString("es-AR") : "Sin datos"}
+          />
+        </div>
       </div>
 
       {timeline && (
