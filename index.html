@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AkzoNobel Marine & Protective Coatings — CRM Comercial</title>
+  <meta name="description" content="CRM comercial standalone para AkzoNobel Marine & Protective Coatings: clientes, proyectos, pipeline, actividades y forecast.">
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23005192'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='16' font-weight='700' fill='%23ffffff' text-anchor='middle'%3EAN%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- PWA: permite "Instalar" / "Agregar a pantalla de inicio" en el celular
+       (ver sección "Instalar en el celular" del README). No requiere nada
+       de esto para seguir usándose como siempre (doble click en index.html);
+       solo se activa de verdad si la app se sirve por HTTPS. -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#005192">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AkzoNobel CRM">
+
+  <!-- Librerías empaquetadas localmente (sin dependencia de CDN externo, ver vendor/README.md) -->
+  <!-- Chart.js 4.4.4 (MIT) -->
+  <script src="vendor/chart.umd.js"></script>
+  <!-- SheetJS 0.18.5 — XLSX/CSV export & import (Apache-2.0) -->
+  <script src="vendor/xlsx.full.min.js"></script>
+  <!-- SortableJS 1.15.2 — Kanban drag & drop (MIT) -->
+  <script src="vendor/Sortable.min.js"></script>
+  <!-- Lucide icons 0.462.0 (ISC) -->
+  <script src="vendor/lucide.min.js"></script>
+  <!-- Firebase JS SDK 12.19.0 (compat/UMD), Apache-2.0 — sincronización en la nube OPCIONAL.
+       El CRM funciona 100% local sin configurar nada; estos scripts solo se activan
+       si js/firebase-config.js contiene credenciales reales (ver README). -->
+  <script src="vendor/firebase-app-compat.js"></script>
+  <script src="vendor/firebase-auth-compat.js"></script>
+  <script src="vendor/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div id="app-root">
+    <div class="loading-state" style="min-height:100vh">
+      <div class="spinner"></div>
+      <span>Iniciando AkzoNobel CRM...</span>
+    </div>
+  </div>
+
+  <!-- App modules (orden de dependencia: storage/ui/mockData primero, app.js al final) -->
+  <script src="js/firebase-config.js"></script>
+  <script src="js/cloud.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/storage-cloud.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/users.js"></script>
+  <script src="js/users-cloud.js"></script>
+  <script src="js/mockData.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/kanban.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/clients.js"></script>
+  <script src="js/projects.js"></script>
+  <script src="js/activities.js"></script>
+  <script src="js/materials.js"></script>
+  <script src="js/team.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/import.js"></script>
+  <script src="js/router.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Registro del service worker (PWA). Los service workers solo funcionan
+       en contexto seguro (HTTPS o localhost) — al abrir index.html con
+       doble click (file://) esto no hace nada, sin errores. -->
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () { /* PWA opcional: si falla, la app sigue funcionando igual */ });
+      });
+    }
+  </script>
+</body>
+</html>
