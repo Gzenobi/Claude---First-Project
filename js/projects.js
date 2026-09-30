@@ -281,6 +281,11 @@
       getColumnKey: function (p) { return p.estado; },
       getItemId: function (p) { return p.id; },
       getValue: function (p) { return Number(p.valor || 0); },
+      getCardClass: function (p) {
+        var isOpen = p.estado !== 'Ganado' && p.estado !== 'Perdido';
+        var isOverdue = isOpen && p.fechaCierre && new Date(p.fechaCierre) < new Date();
+        return isOverdue ? 'kc-overdue' : '';
+      },
       renderCard: function (p) {
         return '<div class="kc-title">' + UI.escapeHtml(p.nombreProyecto) + '</div>' +
           '<div class="kc-client">' + UI.escapeHtml(clientName(clients, p.clienteId)) + '</div>' +

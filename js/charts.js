@@ -10,6 +10,17 @@
   var PALETTE = ['#005192', '#008BC5', '#542C97', '#000394', '#E0457A', '#A8269A'];
   var PALETTE_LIGHT = ['#8CB6D9', '#A3DDF5', '#A290C2', '#999AD4', '#FFB3D4', '#D292CC'];
 
+  // Color por nombre semántico (mismos nombres que CRM.Constants.PROJECT_STAGES[].color
+  // y projects.js STAGE_CSS_VAR) — así una etapa tiene el mismo color en el Kanban y
+  // en los gráficos del Dashboard. El orden gray→navy→sky→ultramarine→violet evita
+  // adyacencias difíciles de distinguir para daltonismo (validado con dataviz skill).
+  var STAGE_COLOR_HEX = { gray: '#868688', navy: '#005192', sky: '#008BC5', ultramarine: '#000394', violet: '#A8269A', purple: '#542C97', fuchsia: '#E0457A' };
+
+  // Color fijo por segmento (no posicional): mismo criterio que clients.js
+  // segmentBadgeClass, elegido para que ningún par adyacente en el donut sea
+  // difícil de distinguir para daltonismo (validado con dataviz skill).
+  var SEGMENT_COLOR_HEX = { 'Minería': '#005192', 'Oil & Gas': '#008BC5', 'Energía': '#000394', 'Infraestructura': '#E0457A', 'Manufactura': '#542C97' };
+
   var instances = {};
 
   function destroy(canvasId) {
@@ -51,7 +62,7 @@
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{ label: 'Pipeline (USD)', data: data, backgroundColor: PALETTE, borderRadius: 6, maxBarThickness: 46 }]
+        datasets: [{ label: 'Pipeline (USD)', data: data, backgroundColor: openStages.map(function (s) { return STAGE_COLOR_HEX[s.color] || PALETTE[0]; }), borderRadius: 6, maxBarThickness: 46 }]
       },
       options: baseOptions({
         plugins: { legend: { display: false }, tooltip: baseOptions().plugins.tooltip },
@@ -68,10 +79,14 @@
     });
   }
 
-  function renderForecastMonthly(canvasId, projects, onBarClick) {
-    destroy(canvasId);
-    var ctx = document.getElementById(canvasId);
-    if (!ctx) return;
+  /**
+   * Construye los 6 baldes mensuales (revenue + litros ponderados) una sola vez,
+   * reutilizados por los dos gráficos de forecast (uno por métrica — ver
+   * renderForecastRevenue/renderForecastVolume). Un solo gráfico con dos ejes Y
+   * fue reemplazado por dos gráficos de un eje cada uno: dos medidas de escalas
+   * distintas (USD vs. litros) en el mismo eje sugieren una relación que no existe.
+   */
+  function buildForecastBuckets(projects) {
     var now = new Date();
     var buckets = [];
     for (var i = 0; i < 6; i++) {
@@ -89,61 +104,67 @@
       bucket.litros += Number(p.volumenLitros || 0) * weight;
       bucket.projectIds.push(p.id);
     });
+    return buckets;
+  }
+
+  function renderForecastLine(canvasId, buckets, opts) {
+    destroy(canvasId);
+    var ctx = document.getElementById(canvasId);
+    if (!ctx) return;
     instances[canvasId] = new Chart(ctx, {
       type: 'line',
       data: {
         labels: buckets.map(function (b) { return b.label; }),
-        datasets: [
-          {
-            label: 'Forecast ponderado (USD)',
-            data: buckets.map(function (b) { return Math.round(b.revenue); }),
-            borderColor: '#008BC5',
-            backgroundColor: '#A3DDF544',
-            fill: true,
-            tension: 0.35,
-            pointBackgroundColor: '#005192',
-            pointRadius: 4,
-            yAxisID: 'y'
-          },
-          {
-            label: 'Forecast ponderado (litros)',
-            data: buckets.map(function (b) { return Math.round(b.litros); }),
-            borderColor: '#542C97',
-            backgroundColor: '#A290C2',
-            borderDash: [5, 4],
-            fill: false,
-            tension: 0.35,
-            pointBackgroundColor: '#542C97',
-            pointRadius: 4,
-            yAxisID: 'y1'
-          }
-        ]
+        datasets: [{
+          label: opts.datasetLabel,
+          data: buckets.map(function (b) { return Math.round(opts.valueOf(b)); }),
+          borderColor: opts.lineColor,
+          backgroundColor: opts.fillColor,
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: opts.lineColor,
+          pointRadius: 4
+        }]
       },
       options: baseOptions({
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Arial', size: 11.5 }, color: '#868688' } },
-          tooltip: {
-            backgroundColor: '#005192',
-            callbacks: {
-              label: function (item) {
-                if (item.datasetIndex === 0) return 'Revenue: $' + item.parsed.y.toLocaleString('es-CL');
-                return 'Volumen: ' + item.parsed.y.toLocaleString('es-CL') + ' L';
-              }
-            }
-          }
+          legend: { display: false },
+          tooltip: { backgroundColor: '#005192', callbacks: { label: function (item) { return opts.tooltipLabel(item.parsed.y); } } }
         },
         scales: {
-          y: { beginAtZero: true, position: 'left', ticks: { callback: function (v) { return '$' + (v / 1000) + 'k'; }, color: '#868688' }, grid: { color: '#B7B9BA33' } },
-          y1: { beginAtZero: true, position: 'right', ticks: { callback: function (v) { return (v / 1000) + 'k L'; }, color: '#868688' }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { callback: opts.tickFormat, color: '#868688' }, grid: { color: '#B7B9BA33' } },
           x: { ticks: { color: '#868688' }, grid: { display: false } }
         },
-        onHover: onBarClick ? function (evt, elements) { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; } : undefined,
-        onClick: onBarClick ? function (evt, elements) {
+        onHover: opts.onBarClick ? function (evt, elements) { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; } : undefined,
+        onClick: opts.onBarClick ? function (evt, elements) {
           if (!elements.length) return;
-          var bucket = buckets[elements[0].index];
-          onBarClick(bucket);
+          opts.onBarClick(buckets[elements[0].index]);
         } : undefined
       })
+    });
+  }
+
+  function renderForecastRevenue(canvasId, projects, onBarClick) {
+    renderForecastLine(canvasId, buildForecastBuckets(projects), {
+      datasetLabel: 'Forecast ponderado (USD)',
+      lineColor: '#005192',
+      fillColor: '#8CB6D944',
+      valueOf: function (b) { return b.revenue; },
+      tickFormat: function (v) { return '$' + (v / 1000) + 'k'; },
+      tooltipLabel: function (v) { return 'Revenue: $' + v.toLocaleString('es-CL'); },
+      onBarClick: onBarClick
+    });
+  }
+
+  function renderForecastVolume(canvasId, projects, onBarClick) {
+    renderForecastLine(canvasId, buildForecastBuckets(projects), {
+      datasetLabel: 'Forecast ponderado (litros)',
+      lineColor: '#542C97',
+      fillColor: '#A290C244',
+      valueOf: function (b) { return b.litros; },
+      tickFormat: function (v) { return (v / 1000) + 'k L'; },
+      tooltipLabel: function (v) { return 'Volumen: ' + v.toLocaleString('es-CL') + ' L'; },
+      onBarClick: onBarClick
     });
   }
 
@@ -156,7 +177,7 @@
     });
     instances[canvasId] = new Chart(ctx, {
       type: 'doughnut',
-      data: { labels: segments, datasets: [{ data: data, backgroundColor: PALETTE, borderWidth: 2, borderColor: '#fff' }] },
+      data: { labels: segments, datasets: [{ data: data, backgroundColor: segments.map(function (seg, i) { return SEGMENT_COLOR_HEX[seg] || PALETTE[i % PALETTE.length]; }), borderWidth: 2, borderColor: '#fff' }] },
       options: baseOptions({
         cutout: '62%',
         onHover: onSliceClick ? function (evt, elements) { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; } : undefined,
@@ -202,7 +223,8 @@
     PALETTE_LIGHT: PALETTE_LIGHT,
     destroy: destroy,
     renderPipelineByStage: renderPipelineByStage,
-    renderForecastMonthly: renderForecastMonthly,
+    renderForecastRevenue: renderForecastRevenue,
+    renderForecastVolume: renderForecastVolume,
     renderProjectsBySegment: renderProjectsBySegment,
     renderActivitiesByUser: renderActivitiesByUser
   };

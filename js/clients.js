@@ -31,8 +31,11 @@
     return cols;
   }
 
+  // Mismo color por segmento en toda la app (ver charts.js SEGMENT_COLOR_HEX):
+  // orden elegido para que ningún par adyacente sea difícil de distinguir para
+  // daltonismo (validado con la skill de dataviz).
   function segmentBadgeClass(seg) {
-    var map = { 'Minería': 'badge-navy', 'Oil & Gas': 'badge-ultramarine', 'Energía': 'badge-sky', 'Infraestructura': 'badge-purple', 'Manufactura': 'badge-violet' };
+    var map = { 'Minería': 'badge-navy', 'Oil & Gas': 'badge-sky', 'Energía': 'badge-ultramarine', 'Infraestructura': 'badge-fuchsia', 'Manufactura': 'badge-purple' };
     return map[seg] || 'badge-gray';
   }
 

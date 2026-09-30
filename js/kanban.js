@@ -38,7 +38,7 @@
       var cardsEl = colEl.querySelector('.kanban-cards');
       colItems.forEach(function (item) {
         var cardEl = document.createElement('div');
-        cardEl.className = 'kanban-card';
+        cardEl.className = 'kanban-card' + (opts.getCardClass ? (' ' + opts.getCardClass(item)) : '');
         cardEl.setAttribute('data-id', opts.getItemId(item));
         cardEl.innerHTML = opts.renderCard(item);
         cardsEl.appendChild(cardEl);

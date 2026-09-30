@@ -144,7 +144,8 @@
         '</div>' +
         '<div class="charts-grid">' +
           '<div class="panel"><div class="panel-header"><h3>Pipeline por etapa</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Click en una barra para ver el detalle</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-pipeline-stage"></canvas></div></div></div>' +
-          '<div class="panel"><div class="panel-header"><h3>Forecast mensual (6 meses)</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Revenue y litros</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-forecast"></canvas></div></div></div>' +
+          '<div class="panel"><div class="panel-header"><h3>Forecast mensual — Revenue (USD)</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Click para ver el detalle</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-forecast-usd"></canvas></div></div></div>' +
+          '<div class="panel"><div class="panel-header"><h3>Forecast mensual — Volumen (litros)</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Click para ver el detalle</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-forecast-litros"></canvas></div></div></div>' +
           '<div class="panel"><div class="panel-header"><h3>Proyectos por segmento</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Click para ver el detalle</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-segment"></canvas></div></div></div>' +
           '<div class="panel"><div class="panel-header"><h3>Actividades por responsable</h3><span class="chart-hint">' + UI.icon('mouse-pointer-click') + 'Click para ver el detalle</span></div><div class="panel-body"><div class="chart-wrap"><canvas id="chart-activities-user"></canvas></div></div></div>' +
         '</div>';
@@ -160,10 +161,12 @@
         var matching = projects.filter(function (p) { return p.estado === stage.key; });
         openProjectListModal('Pipeline — ' + stage.key, matching, clients);
       });
-      CRM.Charts.renderForecastMonthly('chart-forecast', projects, function (bucket) {
+      var forecastBucketClick = function (bucket) {
         var matching = projects.filter(function (p) { return bucket.projectIds.indexOf(p.id) !== -1; });
         openProjectListModal('Forecast — ' + bucket.label, matching, clients);
-      });
+      };
+      CRM.Charts.renderForecastRevenue('chart-forecast-usd', projects, forecastBucketClick);
+      CRM.Charts.renderForecastVolume('chart-forecast-litros', projects, forecastBucketClick);
       CRM.Charts.renderProjectsBySegment('chart-segment', projects, CRM.Constants.SEGMENTS, function (segment) {
         var matching = projects.filter(function (p) { return p.segmento === segment; });
         openProjectListModal('Proyectos — ' + segment, matching, clients);
