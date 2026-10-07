@@ -1,0 +1,55 @@
+COMP,PE,PRECIO1,CAPA1,PRECIO2,CAPA2,NOMBRE,TIPO,UNIDAD
+3110203,1.2,0.1,16.0,0.0,0.0,Fondo Anticorrosivo Acrílico Tintable,B,L
+4516000,0.96,0.1,3.2,0.1,16.0,Esm.Secado Extra Rápido Transparente,B,L
+3110204,1.1,0.1,3.7,0.1,18.5,Fondo Anticorrosivo Acrílico Base Amarilla,B,L
+4510000,0.91,0.1,3.2,0.1,16.0,Esm. Sintetico Industrial Transparente,B,L
+4510001,1.0,0.1,3.2,0.1,16.0,Esm. Sintetico Industrial Blanco,B,L
+4514130,0.9,0.1,3.2,0.1,16.0,Laca Nitrocelulósica Transparente,B,L
+4516001,1.09,0.1,3.2,0.1,16.0,Esm.Secado Extra Rápido Blanco,B,L
+4517000,0.95,0.1,3.2,0.1,16.0,Laca Coil Brillante,B,L
+4517001,0.95,0.1,3.2,0.1,16.0,Laca Coil Satinada,B,L
+4517500,0.93,0.1,3.0,0.1,15.0,Esm. Acrílico Secado Aire DTM,B,L
+4517504,0.97,0.1,3.7,0.1,18.5,Esmalte Acrílico DTM Base Amarilla,B,L
+4519000,0.88,0.1,3.2,0.1,16.0,Esm. Rápido Secado Transparente,B,L
+4519001,1.0,0.1,3.2,0.1,16.0,Esm. Rápido Secado Blanco,B,L
+4519004,0.91,0.1,3.7,0.1,18.5,Esmalte Secado Rápido base Amarilla,B,L
+4519005,0.91,0.1,3.7,0.1,18.5,Esm Secado Rápido Base Naranja,B,L
+4525000,1.18,0.1,3.0,0.1,15.0,Esm. Epoxi Transparente,B,L
+4525001,1.33,0.1,3.0,0.1,15.0,Esm. Epoxi Blanco,B,L
+4525004,1.19,0.1,3.2,0.1,16.0,Esmalte Epoxi Base Amarilla,B,L
+4525103,1.45,0.1,3.2,0.0,0.0,Epoxi Mastic Tintable,B,L
+4518000,0.93,0.1,16.0,0.0,0.0,Esm. Ultrarrápido tintable,B,L
+4525202,1.5,0.1,3.7,0.1,18.4,Epoxi Alto Espesor,B,L
+4600603,1.07,0.1,1.0,0.0,0.0,GVA480 VIOLETA,C,L
+4600602,1.06,0.1,1.0,0.0,0.0,GVA 142 VIOLETA ORGANICO,C,L
+4600402,1.15,0.1,1.0,0.0,0.0,GVA 140 NARANJA,C,L
+4600302,1.15,0.1,1.0,0.0,0.0,GVA 322 ROJO ORGANICO,C,L
+4600301,1.1,0.1,1.0,0.0,0.0,GVA 146 LIMON,C,L
+4600101,1.09,0.1,1.0,0.0,0.0,GVA 145 AMARILLO MEDIANO,C,L
+4600008,1.57,0.1,1.0,0.0,0.0,GVA 134 NEUTRO,C,L
+4600006,1.11,0.1,1.0,0.0,0.0,GVA 126 NEGRO,C,L
+4600005,1.16,0.1,1.0,0.0,0.0,GVA 149 VERDE,C,L
+4600004,1.09,0.1,1.0,0.0,0.0,GVA 124 AZUL ORGANICO,C,L
+4600002,1.78,0.1,1.0,0.0,0.0,GVA 122 ROJO OXIDO,C,L
+4600001,1.58,0.1,1.0,0.0,0.0,GVA 127 AMARILLO OXIDO,C,L
+4600000,1.68,0.1,1.0,0.0,0.0,GVA147 BLANCO,C,L
+4597030,1.42,0.1,1.0,0.0,0.0,Pasta aluminio No leafing,C,L
+4570115,1.0,0.1,3.7,0.1,18.5,Esmalte Poliuretánico Acrílico Base Naranja,B,L
+4570111,1.23,0.1,3.7,0.1,18.5,Full White Poliuretano Acrílico,B,L
+4525700,1.8,0.1,5.0,0.1,20.0,Epoxi Autonivelante HS Tintable,B,K
+4540000,1.0,0.1,3.2,0.1,16.0,Esm. Horneable Transparente,B,L
+4540001,1.14,0.1,3.2,0.1,16.0,Esm. Horneable Blanco,B,L
+4570000,1.09,0.1,3.0,0.1,15.0,Esm. Poliuretano Transparente,B,L
+4570001,1.15,0.1,3.0,0.1,15.0,Esm. Poliuretano Blanco,B,L
+4570011,1.36,0.1,3.7,0.1,18.5,Full White Poliuretano Poliester,B,L
+4570014,0.917,0.1,3.7,0.1,18.5,Esm. Poliuretanico Poliester Base Amarilla,B,L
+4570100,0.97,0.1,3.0,0.1,15.0,Esm. Poliuretano Acrílico,B,L
+4570104,1.03,0.1,3.7,0.1,18.5,Esm. Poliuretano Acrílica Base Amarilla,B,L
+4570108,1.0,0.1,3.7,0.1,18.5,Esm. Poliuretano Acrílico Base Azul,B,L
+4570109,1.04,0.1,3.7,0.1,18.5,Esm. Poliuretano Acrílico Base Verde,B,L
+4570110,0.99,0.1,3.7,0.1,18.5,Esm. Poliuretano Acrílico Base Roja,B,L
+4597006,0.05,0.1,1.0,0.0,0.0,Mateante en Polvo,A,K
+4597008,1.42,0.1,1.0,0.0,0.0,Pasta de Alum. No Leafing,A,K
+4597013,1.44,0.1,1.0,0.0,0.0,Pasta de Alum. Leafing,A,K
+4581000,1.2,0.1,3.2,0.1,16.0,Esm. Caucho Clorado,B,L
+4510004,0.95,0.1,3.2,0.1,16.0,Esmalte Sintético Industrial Base Amarilla,B,L

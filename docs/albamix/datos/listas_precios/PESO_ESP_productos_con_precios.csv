@@ -1,0 +1,55 @@
+"Tipo";"Código";"Nombre";"Peso Esp.";"Precio 1";"Capa. 1";"Precio 2";"Capa. 2";"Unidad";"Bonif.";"Rentab."
+"B";3110203;"Fondo Anticorrosivo Acrílico Tintable";1.20;7.78;16.00;0.00;0.00;"Litros";0;0
+"C";4500000;"Concentrado Blanco";1.74;41.16;1.00;0.00;0.00;"Litros";0;0
+"C";4500001;"Concentrado Amarillo Oxido";1.67;53.88;1.00;0.00;0.00;"Litros";0;0
+"C";4500002;"Concentrado Rojo Oxido";1.74;57.38;1.00;0.00;0.00;"Litros";0;0
+"C";4500004;"Concentrado Azul";1.06;69.63;1.00;0.00;0.00;"Litros";0;0
+"C";4500005;"Concentrado Verde";1.06;58.98;1.00;0.00;0.00;"Litros";0;0
+"C";4500006;"Concentrado Negro";1.03;34.02;1.00;0.00;0.00;"Litros";0;0
+"C";4500008;"Concentrado Neutro";1.90;21.19;1.00;0.00;0.00;"Litros";0;0
+"C";4500101;"Concentrado Amarillo Cromo";1.92;64.67;1.00;0.00;0.00;"Litros";0;0
+"C";4500102;"Concentrado Rojo Claro";1.00;44.61;1.00;0.00;0.00;"Litros";0;0
+"C";4500103;"Concentrado PC Rojo Claro";1.01;44.61;1.00;0.00;0.00;"Litros";0;0
+"C";4500105;"Concentrado Verde Oxido";1.63;64.19;1.00;0.00;0.00;"Litros";0;0
+"C";4500106;"Concentrado Negro London";1.05;22.28;1.00;0.00;0.00;"Litros";0;0
+"C";4500114;"Concentrado Azul p/Poliuretanos";1.06;48.69;1.00;0.00;0.00;"Litros";0;0
+"C";4500201;"Concentrado Amarillo Orgánico";1.14;180.62;1.00;0.00;0.00;"Litros";0;0
+"C";4500202;"Concentrado Rojo Solido";0.97;140.36;1.00;0.00;0.00;"Litros";0;0
+"C";4500301;"Concentrado Amarillo Lima";1.75;59.06;1.00;0.00;0.00;"Litros";0;0
+"C";4500302;"Concentrado Rojo Oscuro";1.03;63.74;1.00;0.00;0.00;"Litros";0;0
+"C";4500402;"Concentrado Naranja";1.95;83.54;1.00;0.00;0.00;"Litros";0;0
+"C";4500502;"Concentrado Naranja Orgánico";1.08;159.64;1.00;0.00;0.00;"Litros";0;0
+"C";4500602;"Concentrado Violeta";1.03;86.03;1.00;0.00;0.00;"Litros";0;0
+"C";4500702;"Concentrado Rosa";1.00;88.56;1.00;0.00;0.00;"Litros";0;0
+"C";4500802;"Concentrado Rojo Magenta";1.00;90.51;1.00;0.00;0.00;"Litros";0;0
+"B";4510000;"Esm. Sintetico Industrial Transparente";0.91;20.40;3.20;93.47;16.00;"Litros";0;0
+"B";4510001;"Esm. Sintetico Industrial Blanco";1.00;24.64;3.20;113.35;16.00;"Litros";0;0
+"B";4510003;"Esm. Sintetico Industrial Satinado";0.93;29.31;3.20;132.09;16.00;"Litros";0;0
+"B";4514100;"Laca Nitrocelulósica";0.90;33.25;3.20;151.18;16.00;"Litros";0;0
+"B";4516000;"Esm.Secado Extra Rápido Transparente";0.96;32.29;3.20;141.88;16.00;"Litros";0;0
+"B";4516001;"Esm.Secado Extra Rápido Blanco";1.09;39.63;3.20;173.51;16.00;"Litros";0;0
+"B";4517000;"Laca Coil Brillante";0.95;69.53;3.20;332.58;16.00;"Litros";0;0
+"B";4517001;"Laca Coil Satinada";0.95;69.53;3.20;332.58;16.00;"Litros";0;0
+"B";4517500;"Esm. Acrílico Secado Aire DTM";0.93;26.69;3.00;118.67;15.00;"Litros";0;0
+"B";4518000;"Esm. Ultrarrápido tintable";0.93;119.82;16.00;0.00;0.00;"Litros";0;0
+"B";4519000;"Esm. Rápido Secado Transparente";0.88;17.50;3.20;77.90;16.00;"Litros";0;0
+"B";4519001;"Esm. Rápido Secado Blanco";1.00;23.43;3.20;105.11;16.00;"Litros";0;0
+"B";4525000;"Esm. Epoxi Transparente";1.18;72.84;3.00;346.74;15.00;"Litros";0;0
+"B";4525001;"Esm. Epoxi Blanco";1.33;83.18;3.00;398.51;15.00;"Litros";0;0
+"B";4525103;"Epoxi Mastic Tintable";1.45;84.09;3.20;0.00;0.00;"Litros";0;0
+"B";4525700;"Epoxi Autonivelante HS Tintable";1.80;59.23;5.00;229.12;20.00;"Kilos";0;0
+"B";4540000;"Esm. Horneable Transparente";1.00;28.58;3.20;126.41;16.00;"Litros";0;0
+"B";4540001;"Esm. Horneable Blanco";1.14;35.02;3.20;153.87;16.00;"Litros";0;0
+"B";4570000;"Esm. Poliuretano Transparente";1.09;76.44;3.00;370.85;15.00;"Litros";0;0
+"B";4570001;"Esm. Poliuretano Blanco";1.15;77.48;3.00;372.29;15.00;"Litros";0;0
+"B";4570002;"Esm. Poliuretano p/Colores Intensos";1.09;86.65;3.40;420.28;17.00;"Litros";0;0
+"B";4570003;"Esm. Poliuretano Satinado";1.11;87.90;3.00;0.00;0.00;"Litros";0;0
+"B";4570011;"Full White Poliuretano Poliester";1.36;116.21;3.70;556.59;18.50;"Litros";0;0
+"B";4570100;"Esm. Poliuretano Acrílico";0.97;54.45;3.00;251.96;15.00;"Litros";0;0
+"B";4570111;"Full White Poliuretano Acrílico";1.23;71.80;3.70;333.35;18.50;"Litros";0;0
+"B";4581000;"Esm. Caucho Clorado";1.20;63.20;3.20;304.41;16.00;"Litros";0;0
+"B";4581010;"Esm. Caucho Clorado   LS";1.21;41.53;3.20;181.11;16.00;"Litros";0;0
+"A";4597006;"Mateante en Polvo";0.05;62.99;1.00;0.00;0.00;"Kilos";0;0
+"A";4597008;"Pasta de Alum. No Leafing";1.42;94.48;1.00;0.00;0.00;"Kilos";0;0
+"A";4597013;"Pasta de Alum. Leafing";1.44;51.41;1.00;0.00;0.00;"Kilos";0;0
+"C";4597030;"Pasta aluminio No leafing";1.42;213.42;1.00;0.00;0.00;"Litros";0;0
