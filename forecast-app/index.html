@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forecast MP&amp;Y</title>
+  <!-- Librerías locales (vendor/): la app funciona sin conexión a internet -->
+  <link rel="stylesheet" href="vendor/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/logos/akzonobel-white.svg" alt="AkzoNobel">
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard"><span class="ico">◧</span>Dashboard</button>
+      <button class="nav-item" data-view="grid"><span class="ico">▦</span>Forecast</button>
+      <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Vista mensual</button>
+      <button class="nav-item" data-view="clients"><span class="ico">◉</span>Resumen por cliente</button>
+      <button class="nav-item" data-view="products"><span class="ico">◈</span>Resumen por producto</button>
+      <button class="nav-item" data-view="projects"><span class="ico">◆</span>Proyectos <span class="nav-badge nb-violet" id="navProjCount" hidden>0</span></button>
+      <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Alertas <span class="nav-badge" id="navAlertCount">0</span></button>
+      <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Configuración</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="file-info" id="fileInfo">Sin archivo cargado</div>
+      <button class="btn btn-light btn-block" id="btnLoad">Cargar archivo Excel</button>
+      <button class="btn btn-sky btn-block" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
+      <button class="btn btn-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
+      <div class="save-state" id="saveState"></div>
+    </div>
+  </aside>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" id="btnMenu" aria-label="Menú">☰</button>
+      <div class="topbar-title">
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="subtitle" id="viewSubtitle">Forecast mensual de consumo</div>
+      </div>
+      <button class="btn btn-ghost filter-toggle" id="btnFilters" hidden>Filtros</button>
+      <img class="topbar-logo" src="assets/logos/international-blue.png" alt="International">
+    </header>
+
+    <!-- Barra de filtros global (aplica a todas las vistas) -->
+    <section class="filters" id="filters" hidden>
+      <div class="f-field"><label>Cliente</label><select id="fClient"></select></div>
+      <div class="f-field"><label>KAM</label><select id="fKam"></select></div>
+      <div class="f-field"><label>Grupo</label><select id="fGroup"></select></div>
+      <div class="f-field"><label>Clase</label><select id="fClass"></select></div>
+      <div class="f-field f-grow"><label>Producto / SKU</label><input id="fText" type="search" placeholder="Descripción, SKU o ProductId…"></div>
+      <div class="f-field"><label>Estado</label>
+        <select id="fStatus">
+          <option value="">Todos</option>
+          <option value="alert">Con alertas</option>
+          <option value="up">En alza</option>
+          <option value="down">En baja</option>
+          <option value="flat">Estables</option>
+          <option value="interm">Intermitentes</option>
+          <option value="none">Sin movimiento</option>
+          <option value="spike">Con picos</option>
+          <option value="seasonal">Estacionales</option>
+          <option value="risk">Riesgo de quiebre</option>
+          <option value="locked">Con valores bloqueados</option>
+          <option value="proj">Con proyectos</option>
+          <option value="excl">Con meses excluidos (limpieza)</option>
+        </select>
+      </div>
+      <label class="f-check"><input type="checkbox" id="fHideDead" checked> Ocultar sin consumo ni forecast</label>
+      <button class="btn btn-ghost" id="btnClearFilters">Limpiar</button>
+      <div class="f-count" id="fCount"></div>
+    </section>
+
+    <!-- Estado vacío / carga -->
+    <section class="view active" id="view-empty">
+      <div class="dropzone" id="dropzone">
+        <div class="dz-icon">⇪</div>
+        <h2>Arrastrá el archivo de forecast acá</h2>
+        <p>Formatos .xlsx y .xlsb. Se detecta automáticamente la hoja <b>Actuals</b> y, si existe, la hoja <b>Forecast</b> (plan anterior DMR, estadístico, KAM, PAC y cartera).</p>
+        <button class="btn btn-primary" id="btnLoad2">Elegir archivo</button>
+        <p class="muted small">El archivo se procesa 100% en tu navegador: no se sube a ningún servidor.</p>
+      </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid-2">
+        <div class="card card-wide">
+          <div class="section-bar">Evolución mensual <span class="bar-note" id="trendUnitNote"></span></div>
+          <div class="chart-box tall"><canvas id="chTrend"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-bar">Por cliente: promedio histórico vs forecast</div>
+          <div class="chart-box"><canvas id="chClients"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-bar">Mayores variaciones por grupo (forecast vs promedio)</div>
+          <div class="chart-box"><canvas id="chGroups"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-bar">Alertas por tipo</div>
+          <div class="chart-box"><canvas id="chAlerts"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-bar">Estado de los productos</div>
+          <div class="chart-box"><canvas id="chStatus"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRILLA DE FORECAST -->
+    <section class="view" id="view-grid">
+      <div class="card">
+        <div class="section-bar">Acciones masivas</div>
+        <div class="toolbar">
+          <div class="tb-group">
+            <label>Aplicar a</label>
+            <select id="mScope">
+              <option value="filtered">Filas filtradas</option>
+              <option value="selected">Filas seleccionadas</option>
+            </select>
+          </div>
+          <div class="tb-group">
+            <label>Meses</label>
+            <select id="mFrom"></select><span>a</span><select id="mTo"></select>
+          </div>
+          <div class="tb-group">
+            <label>Acción</label>
+            <select id="mAction">
+              <option value="suggested">Completar con sugerido</option>
+              <option value="plan">Copiar plan anterior (DMR)</option>
+              <option value="stat">Copiar estadístico del sistema</option>
+              <option value="prev">Copiar mes anterior</option>
+              <option value="pct">Aplicar % de aumento/disminución</option>
+              <option value="value">Completar con valor fijo</option>
+              <option value="zero">Poner en cero</option>
+              <option value="lock">Bloquear celdas</option>
+              <option value="unlock">Desbloquear celdas</option>
+              <option value="cleanspikes">Limpieza: excluir picos sugeridos (proyectos)</option>
+              <option value="restorehist">Limpieza: restaurar historia completa</option>
+            </select>
+          </div>
+          <div class="tb-group" id="mParamWrap" hidden>
+            <label id="mParamLabel">%</label>
+            <input id="mParam" type="number" step="any" style="width:90px">
+          </div>
+          <label class="f-check"><input type="checkbox" id="mOnlyEmpty"> Solo celdas en 0</label>
+          <button class="btn btn-primary" id="btnApply">Aplicar</button>
+          <button class="btn btn-ghost" id="btnUndo" disabled>↶ Deshacer</button>
+          <button class="btn btn-sky" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
+          <div class="tb-spacer"></div>
+          <div class="legend">
+            <span class="lg lg-up">Aumento</span>
+            <span class="lg lg-down">Caída</span>
+            <span class="lg lg-zero">Sin consumo</span>
+            <span class="lg lg-manual">🔒 Manual / bloqueado</span>
+          </div>
+        </div>
+        <div class="hint">Usá <b>📈 Previsión por cliente</b> o el botón <b>✎</b> de cada fila para proyectar con la curva histórica en un pop-up. También podés editar cualquier celda de forecast: el valor queda <b>bloqueado</b> (🔒) y no lo pisan las acciones masivas. Enter baja a la fila siguiente. Clic en la descripción abre el detalle del producto.</div>
+      </div>
+      <div class="card table-card">
+        <div class="table-scroll">
+          <table id="tblGrid" class="display compact nowrap" style="width:100%"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISTA MENSUAL -->
+    <section class="view" id="view-monthly">
+      <div class="card">
+        <div class="section-bar">Vista mensual</div>
+        <div class="toolbar">
+          <div class="tb-group"><label>Mes de forecast</label><select id="monthSel"></select></div>
+          <div class="kpis kpis-inline" id="monthKpis"></div>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div class="table-scroll">
+          <table id="tblMonth" class="display compact nowrap" style="width:100%"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESUMEN CLIENTES -->
+    <section class="view" id="view-clients">
+      <div class="card table-card">
+        <div class="section-bar">Resumen por cliente <span class="bar-note">volúmenes en litros · clic en un cliente para ver su forecast</span></div>
+        <div class="table-scroll"><table id="tblClients" class="display compact nowrap" style="width:100%"></table></div>
+      </div>
+    </section>
+
+    <!-- RESUMEN PRODUCTOS -->
+    <section class="view" id="view-products">
+      <div class="card table-card">
+        <div class="section-bar">Resumen por producto <span class="bar-note">consolidado de todos los clientes · clic en un producto para ver su forecast</span></div>
+        <div class="table-scroll"><table id="tblProducts" class="display compact nowrap" style="width:100%"></table></div>
+      </div>
+    </section>
+
+    <!-- ALERTAS -->
+    <section class="view" id="view-alerts">
+      <div class="card table-card">
+        <div class="section-bar">Alertas <span class="bar-note">se recalculan en cada edición</span></div>
+        <div class="table-scroll"><table id="tblAlerts" class="display compact" style="width:100%"></table></div>
+      </div>
+    </section>
+
+    <!-- PROYECTOS (VULOPPS) -->
+    <section class="view" id="view-projects">
+      <div class="card">
+        <div class="section-bar">Forecast final = base estadística (con corrección manual) + proyectos</div>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="btnNewProject">+ Nuevo proyecto</button>
+          <div class="tb-group"><label>Umbral de probabilidad</label><div><input id="pjThreshold" type="number" min="0" max="100" style="width:70px"> %</div></div>
+          <div class="tb-spacer"></div>
+          <div class="muted small" id="pjNote"></div>
+        </div>
+        <p class="hint">Los proyectos se leen de la hoja <b>VULOPPS</b> al cargar el archivo. <b>OPP</b> (oportunidad) suma y <b>VUL</b> (vulnerabilidad) resta, en litros. Solo entran al forecast los que tienen probabilidad mayor o igual al umbral. Para que un proyecto ya consumido no infle la estadística, marcá esos meses como “proyecto” en el detalle de cada producto (limpieza de historia).</p>
+      </div>
+      <div class="kpis" id="pjKpis"></div>
+      <div class="card table-card">
+        <div class="table-scroll"><table id="tblProjects" class="display compact" style="width:100%"></table></div>
+      </div>
+    </section>
+
+    <!-- CONFIGURACIÓN -->
+    <section class="view" id="view-settings">
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-bar">Reglas de cálculo</div>
+          <form class="form" id="settingsForm">
+            <label>Ventana de análisis (meses)<input type="number" min="3" max="12" name="window"></label>
+            <label>Método de forecast sugerido
+              <select name="method">
+                <option value="avg">Promedio últimos N meses</option>
+                <option value="trend">Tendencia lineal</option>
+                <option value="growth">Promedio + crecimiento %</option>
+                <option value="seasonal">Promedio × índice estacional</option>
+              </select>
+            </label>
+            <label>Crecimiento % (método crecimiento)<input type="number" step="any" name="growthPct"></label>
+            <label>Alerta si el forecast difiere del promedio más de (%)<input type="number" min="5" name="alertPct"></label>
+            <label>Pico anormal: valor mayor a N × el promedio<input type="number" step="0.5" min="1.5" name="spikeFactor"></label>
+            <label>Meses de historia visibles en la grilla<input type="number" min="0" max="24" name="histVisible"></label>
+            <label>Forecast inicial al cargar un archivo
+              <select name="initFrom">
+                <option value="plan">Plan anterior (DMR) del archivo (recomendado si vas a volcar al original)</option>
+                <option value="suggested">Sugerido estadístico (según método)</option>
+              </select>
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Guardar reglas</button>
+            </div>
+            <p class="muted small">Cambiar las reglas recalcula sugeridos, tendencias y alertas al instante. Los valores del forecast <b>no</b> se pisan: usá “Completar con sugerido” en la grilla para aplicarlos.</p>
+          </form>
+        </div>
+        <div class="card">
+          <div class="section-bar">Configuración y datos locales</div>
+          <div class="stack">
+            <p>Todo se guarda automáticamente en este navegador (datos, ediciones, bloqueos y reglas).</p>
+            <button class="btn btn-primary" id="btnCfgExport">Exportar configuración (.json)</button>
+            <button class="btn btn-ghost" id="btnCfgImport">Importar configuración (.json)</button>
+            <p class="muted small">La configuración incluye las reglas, los valores editados a mano y los bloqueos. Sirve para pasar tu trabajo a otra PC o retomar después de cargar un archivo nuevo.</p>
+            <hr>
+            <div class="section-sub">Snapshots para forecast accuracy</div>
+            <p class="muted small">Cada exportación guarda una foto del forecast. El mes que viene, al cargar el archivo con los consumos reales, el KPI “Forecast accuracy” compara contra esa foto.</p>
+            <div id="snapList"></div>
+            <hr>
+            <button class="btn btn-danger" id="btnReset">Borrar datos locales</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Panel lateral de detalle de producto -->
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div><div class="drawer-title" id="dwTitle"></div><div class="drawer-sub" id="dwSub"></div></div>
+    <button class="btn btn-ghost" id="dwClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="chart-box"><canvas id="chRow"></canvas></div>
+    <div class="dw-metrics" id="dwMetrics"></div>
+    <div class="dw-actions">
+      <button class="btn btn-sky" data-rowact="modal">✎ Ingresar forecast (curva)</button>
+      <button class="btn btn-primary" data-rowact="suggested">Aplicar sugerido</button>
+      <button class="btn btn-ghost" data-rowact="plan">Copiar plan anterior</button>
+      <button class="btn btn-ghost" data-rowact="lock">Bloquear fila</button>
+      <button class="btn btn-ghost" data-rowact="unlock">Desbloquear fila</button>
+    </div>
+    <div class="section-sub">Limpieza de historia</div>
+    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los sugeridos por el sistema aparecen con borde violeta.</p>
+    <div class="chips" id="dwClean"></div>
+    <div class="section-sub">Proyectos (VULOPPS)</div>
+    <div id="dwProj"></div>
+    <div class="section-sub">Alertas</div>
+    <div id="dwAlerts"></div>
+  </div>
+</aside>
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Pop-up de previsión por curva histórica (cliente o producto) -->
+<div class="modal" id="fcModal" hidden role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="fmTitle"></div><div class="drawer-sub" id="fmSub"></div></div>
+      <button class="btn btn-ghost" id="fmClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="fm-controls">
+        <div id="fmClientWrap" class="fm-scope">
+          <div class="tb-group"><label>Cliente</label><select id="fmClient"></select></div>
+          <div class="tb-group"><label>Grupo</label><select id="fmGroup"></select></div>
+        </div>
+        <div class="tb-group"><label>Método de proyección</label><div class="segs" id="fmMethod"></div></div>
+        <div class="tb-group"><label>Ventana (meses)</label><input id="fmWindow" type="number" min="3" max="12" style="width:80px"></div>
+        <div class="tb-group"><label>Ajuste %</label><input id="fmAdj" type="number" step="any" style="width:80px" title="Aumento o disminución sobre la curva proyectada (ej. 5 o -10)"></div>
+      </div>
+      <p class="fm-help" id="fmHelp"></p>
+      <div class="fm-grid">
+        <div class="fm-chart"><div class="chart-box tall"><canvas id="chModal"></canvas></div>
+          <div id="fmDistWrap"><div class="section-sub">Reparto por producto</div><div id="fmDist"></div></div>
+        </div>
+        <div class="fm-tablewrap"><div id="fmTable"></div>
+          <p class="muted small">Podés corregir cualquier mes a mano antes de aplicar (Enter pasa al mes siguiente).</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <label class="f-check"><input type="checkbox" id="fmRespect" checked> Respetar celdas bloqueadas</label>
+      <label class="f-check"><input type="checkbox" id="fmLockApplied"> Bloquear los valores aplicados</label>
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="fmCancel">Cancelar</button>
+      <button class="btn btn-primary" id="fmApply">Aplicar al forecast</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up de alta / edición de proyecto -->
+<div class="modal" id="projModal" hidden role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+  <div class="modal-card modal-sm">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="pmTitle">Nuevo proyecto</div><div class="drawer-sub">Volumen en litros, como en la hoja VULOPPS</div></div>
+      <button class="btn btn-ghost" id="pmClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pm-grid">
+        <label>Tipo<select id="pmType"><option value="OPP">OPP · Oportunidad (suma)</option><option value="VUL">VUL · Vulnerabilidad (resta)</option></select></label>
+        <label>Probabilidad %<input id="pmProb" type="number" min="0" max="100"></label>
+        <label class="pm-wide">Nombre del proyecto<input id="pmName" placeholder="Ej. Obra puerto Rosario – pintura tanques"></label>
+        <label class="pm-wide">Cliente<select id="pmClient"></select></label>
+        <label class="pm-wide">Producto (SKU)<input id="pmSku" list="pmSkuList" placeholder="Escribí SKU o descripción…"><datalist id="pmSkuList"></datalist></label>
+      </div>
+      <div class="section-sub" style="margin-top:12px">Litros por mes</div>
+      <div class="pm-spread">
+        <span>Repartir</span><input id="pmTotal" inputmode="decimal" placeholder="Total L" style="width:100px">
+        <span>entre</span><select id="pmFrom"></select><span>y</span><select id="pmTo"></select>
+        <button class="btn btn-ghost btn-xs" id="pmSpread">Repartir</button>
+      </div>
+      <div class="pm-months" id="pmMonths"></div>
+      <p id="pmSum" class="small"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="pmDelete">Eliminar</button>
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="pmCancel">Cancelar</button>
+      <button class="btn btn-primary" id="pmSave">Guardar proyecto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up: volcar al Excel original -->
+<div class="modal" id="origModal" hidden role="dialog" aria-modal="true" aria-labelledby="omTitle">
+  <div class="modal-card modal-sm">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="omTitle">Volcar al Excel original</div><div class="drawer-sub">Sin tocar fórmulas, formatos ni estructura</div></div>
+      <button class="btn btn-ghost" id="omClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Se genera un archivo con bloques alineados <b>celda por celda</b> con tu original. Solo tienen valor las celdas que cambiaste; el resto va vacío. Lo pegás con <b>Pegado especial → Valores + Saltar blancos</b> y las celdas vacías no modifican nada. El archivo incluye las instrucciones paso a paso.</p>
+      <label class="f-check"><input type="checkbox" id="omKeepF"> Respetar las celdas con fórmula =estadístico (no reemplazarlas aunque mi valor sea distinto)</label>
+      <label class="f-check"><input type="checkbox" id="omInclProj"> Incluir los proyectos dentro del DMR (si no, van solo por la hoja VULOPPS para no contarlos dos veces)</label>
+      <div id="omPreview"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="omCancel">Cancelar</button>
+      <button class="btn btn-primary" id="omGo">Generar archivo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay de carga -->
+<div class="loading" id="loading" hidden><div class="spinner"></div><div id="loadingText">Procesando…</div></div>
+<div class="toast" id="toast"></div>
+
+<input type="file" id="fileInput" accept=".xlsx,.xlsb,.xlsm,.xls" hidden>
+<input type="file" id="cfgInput" accept=".json" hidden>
+
+<script src="vendor/jquery.min.js"></script>
+<script src="vendor/jquery.dataTables.js"></script>
+<script src="vendor/chart.umd.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
