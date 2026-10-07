@@ -1,0 +1,4 @@
+# Nunca versionar archivos de datos del cliente
+*.xlsb
+*.xlsx
+*.xls
