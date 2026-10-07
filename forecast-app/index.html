@@ -147,6 +147,7 @@
           <label class="f-check"><input type="checkbox" id="mOnlyEmpty"> Solo celdas en 0</label>
           <button class="btn btn-primary" id="btnApply">Aplicar</button>
           <button class="btn btn-ghost" id="btnUndo" disabled>↶ Deshacer</button>
+          <button class="btn btn-sky" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
           <div class="tb-spacer"></div>
           <div class="legend">
             <span class="lg lg-up">Aumento</span>
@@ -155,7 +156,7 @@
             <span class="lg lg-manual">🔒 Manual / bloqueado</span>
           </div>
         </div>
-        <div class="hint">Editá cualquier celda de forecast: el valor queda <b>bloqueado</b> (🔒) y no lo pisan las acciones masivas. Enter baja a la fila siguiente. Clic en la descripción abre el detalle del producto.</div>
+        <div class="hint">Usá <b>📈 Previsión por cliente</b> o el botón <b>✎</b> de cada fila para proyectar con la curva histórica en un pop-up. También podés editar cualquier celda de forecast: el valor queda <b>bloqueado</b> (🔒) y no lo pisan las acciones masivas. Enter baja a la fila siguiente. Clic en la descripción abre el detalle del producto.</div>
       </div>
       <div class="card table-card">
         <div class="table-scroll">
@@ -265,6 +266,7 @@
     <div class="chart-box"><canvas id="chRow"></canvas></div>
     <div class="dw-metrics" id="dwMetrics"></div>
     <div class="dw-actions">
+      <button class="btn btn-sky" data-rowact="modal">✎ Ingresar forecast (curva)</button>
       <button class="btn btn-primary" data-rowact="suggested">Aplicar sugerido</button>
       <button class="btn btn-ghost" data-rowact="plan">Copiar plan anterior</button>
       <button class="btn btn-ghost" data-rowact="lock">Bloquear fila</button>
@@ -274,6 +276,43 @@
   </div>
 </aside>
 <div class="backdrop" id="backdrop"></div>
+
+<!-- Pop-up de previsión por curva histórica (cliente o producto) -->
+<div class="modal" id="fcModal" hidden role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="fmTitle"></div><div class="drawer-sub" id="fmSub"></div></div>
+      <button class="btn btn-ghost" id="fmClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="fm-controls">
+        <div id="fmClientWrap" class="fm-scope">
+          <div class="tb-group"><label>Cliente</label><select id="fmClient"></select></div>
+          <div class="tb-group"><label>Grupo</label><select id="fmGroup"></select></div>
+        </div>
+        <div class="tb-group"><label>Método de proyección</label><div class="segs" id="fmMethod"></div></div>
+        <div class="tb-group"><label>Ventana (meses)</label><input id="fmWindow" type="number" min="3" max="12" style="width:80px"></div>
+        <div class="tb-group"><label>Ajuste %</label><input id="fmAdj" type="number" step="any" style="width:80px" title="Aumento o disminución sobre la curva proyectada (ej. 5 o -10)"></div>
+      </div>
+      <p class="fm-help" id="fmHelp"></p>
+      <div class="fm-grid">
+        <div class="fm-chart"><div class="chart-box tall"><canvas id="chModal"></canvas></div>
+          <div id="fmDistWrap"><div class="section-sub">Reparto por producto</div><div id="fmDist"></div></div>
+        </div>
+        <div class="fm-tablewrap"><div id="fmTable"></div>
+          <p class="muted small">Podés corregir cualquier mes a mano antes de aplicar (Enter pasa al mes siguiente).</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <label class="f-check"><input type="checkbox" id="fmRespect" checked> Respetar celdas bloqueadas</label>
+      <label class="f-check"><input type="checkbox" id="fmLockApplied"> Bloquear los valores aplicados</label>
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="fmCancel">Cancelar</button>
+      <button class="btn btn-primary" id="fmApply">Aplicar al forecast</button>
+    </div>
+  </div>
+</div>
 
 <!-- Overlay de carga -->
 <div class="loading" id="loading" hidden><div class="spinner"></div><div id="loadingText">Procesando…</div></div>

@@ -28,6 +28,25 @@ Todo (datos, ediciones, bloqueos y reglas) se **guarda solo** en el navegador. S
 3. Recorré la grilla por cliente y ajustá lo necesario.
 4. Exportá. La exportación guarda un **snapshot**, y el mes siguiente el KPI *Forecast accuracy* compara ese snapshot contra el consumo real.
 
+## Previsión con la curva histórica (pop-up)
+
+Para proyectar los meses que vienen a partir de la historia de cada cliente:
+
+1. En **Forecast**, tocá **📈 Previsión por cliente**, o **Prever** en *Resumen por cliente*. Elegí el cliente y, si querés, un grupo de productos.
+2. El pop-up muestra la **curva histórica del cliente** (21 meses, en litros), la proyección propuesta, el mismo mes del año anterior y el plan anterior.
+3. Elegí el **método**:
+   - **Curva año anterior** (recomendado a nivel cliente): repite la forma del año pasado, escalada al nivel actual. Por ejemplo, si los últimos 6 meses están 10% arriba de los mismos 6 meses del año anterior, cada mes proyectado = mismo mes del año anterior × 1,10.
+   - **Índice estacional**: promedio reciente sin estacionalidad × peso de cada mes calendario según toda la historia.
+   - **Tendencia lineal**: prolonga la recta de los últimos 12 meses.
+   - **Promedio N meses**: valor plano. El más estable para demanda irregular.
+   - **Plan anterior**: arranca del DMR para ajustarlo.
+4. Ajustá la **ventana** y un **% general** (por ejemplo, +5 por aumento de precio o una obra nueva). Si hace falta, **corregí cualquier mes a mano** en la tabla.
+5. **Aplicar al forecast** reparte el total de cada mes entre los productos del cliente **según su mix de los últimos N meses**. Las celdas bloqueadas se respetan: su volumen se descuenta y el resto se reparte entre las libres. Los valores se convierten a piezas con el PAC y se redondean de forma acumulada.
+
+Para un producto puntual usá el botón **✎** de la fila, o **Ingresar forecast (curva)** en el detalle. Es el mismo pop-up pero con la curva de ese producto en piezas, y por defecto los valores aplicados quedan bloqueados. En productos intermitentes arranca con *Promedio*, porque la curva del año anterior amplificaría los pedidos esporádicos.
+
+Cualquier aplicación se puede revertir con **Deshacer**.
+
 ## Qué lee del archivo
 
 | Hoja | Uso |
@@ -60,7 +79,7 @@ La detección es automática: busca la fila de encabezados por nombre de columna
 
 ```
 forecast-app/
-├── index.html      Estructura: sidebar, topbar, filtros globales, 7 vistas, drawer de detalle
+├── index.html      Estructura: sidebar, topbar, filtros globales, 7 vistas, drawer de detalle, pop-up de previsión
 ├── styles.css      Identidad AkzoNobel (navy #003A70), semáforos, layout responsive
 ├── app.js          Toda la lógica (un IIFE, sin dependencias de build)
 ├── vendor/         jQuery 3.7.1, DataTables 1.13.11, Chart.js 4.4.4, SheetJS 0.18.5 (locales)
@@ -77,7 +96,7 @@ forecast-app/
    - `evaluate(row)` depende del forecast (totales, desvíos, alertas, riesgo). Al editar una celda se recalcula **solo esa fila** y se refrescan solo sus celdas calculadas en la tabla.
 5. **Operaciones de forecast**: edición, acciones masivas que respetan los bloqueos y pila de deshacer.
 6. **Filtros**: comunes a todas las vistas.
-7. **Vistas**: dashboard (Chart.js), grilla (DataTables con `deferRender` y paginación, para que con miles de filas solo se dibuje la página visible), vista mensual, resúmenes, alertas, detalle y configuración. Cada vista se re-renderiza solo cuando está activa y marcada como "sucia".
+7. **Vistas**: pop-up de previsión por curva (`projectCurve` + reparto por mix con `distribute`), dashboard (Chart.js), grilla (DataTables con `deferRender` y paginación, para que con miles de filas solo se dibuje la página visible), vista mensual, resúmenes, alertas, detalle y configuración. Cada vista se re-renderiza solo cuando está activa y marcada como "sucia".
 8. **Exportación**: SheetJS arma 5 hojas (*Forecast Final*, *Resumen por Producto*, *Resumen por Cliente*, *Alertas*, *Parámetros*) con título, fecha de generación, autofiltro, anchos de columna y formatos numéricos (`#,##0`, `0.0%`).
 9. **Configuración y snapshots**: export/import JSON con reglas + valores manuales + bloqueos.
 10. **Inicialización y eventos**: delegación de eventos y restauración de sesión.

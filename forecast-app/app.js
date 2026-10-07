@@ -935,6 +935,7 @@
     const hv = Math.min(S.histVisible, M.histMonths.length), hOff = M.histMonths.length - hv;
     const cols = [];
     cols.push({ title: '<input type="checkbox" id="selAll" title="Seleccionar filas visibles">', data: null, orderable: false, className: 'stk c-sel', render: (r) => `<input type="checkbox" class="rsel" data-id="${esc(r.id)}"${state.selected.has(r.id) ? ' checked' : ''}>` });
+    cols.push({ title: '', data: null, orderable: false, className: 'stk c-edit', render: (r) => `<button class="ico-btn" data-fmrow="${esc(r.id)}" title="Ingresar forecast con la curva histórica (pop-up)">✎</button>` });
     cols.push({ title: 'Cliente', data: 'client', className: 'stk c-cli', render: (v, t) => (t === 'display' ? `<span class="cli-name" title="${esc(v)}">${esc(v.replace(/^M&P ARG /, ''))}</span>` : v) });
     cols.push({ title: 'SKU', data: 'sku', className: 'stk c-sku' });
     cols.push({ title: 'Descripción', data: 'desc', className: 'desc', render: (v, t, r) => (t === 'display' ? `<a class="lnk" data-detail="${esc(r.id)}" title="${esc(v)}">${esc(v)}</a>` : v) });
@@ -1125,6 +1126,7 @@
     const data = summarize(rows, (r) => r.client, (o, rs) => { o.kam = [...new Set(rs.map((r) => r.kam).filter(Boolean))].join(', '); });
     const cols = [
       { title: 'Cliente', data: 'k', render: (v, t) => (t === 'display' ? `<a class="lnk" data-client="${esc(v)}">${esc(v)}</a>` : v) },
+      { title: '', data: 'k', orderable: false, render: (v) => `<button class="btn btn-ghost btn-xs" data-fmclient="${esc(v)}">Prever</button>` },
       { title: 'KAM', data: 'kam' },
       numCol('Combinaciones activas', (o) => o.active),
       numCol(`Prom ${state.settings.window}m (L/mes)`, (o) => o.avgL, { cls: 'sep' }),
@@ -1135,7 +1137,7 @@
     if (M.hasPlan) cols.push(numCol('Plan anterior (L)', (o) => o.planL), numCol('Var. vs plan', (o) => o.varPlan, { pct: true }));
     cols.push(numCol('Filas con alertas', (o) => o.alerts));
     if (cliTbl) { cliTbl.destroy(); $('#tblClients').empty(); }
-    cliTbl = $('#tblClients').DataTable({ data, columns: cols, paging: false, order: [[6, 'desc']], language: dtLang(), dom: 'rti' });
+    cliTbl = $('#tblClients').DataTable({ data, columns: cols, paging: false, order: [[7, 'desc']], language: dtLang(), dom: 'rti' });
   }
   function renderProducts(rows) {
     const M = state.meta;
@@ -1215,6 +1217,252 @@
     $id('drawer').classList.add('open'); $id('backdrop').classList.add('show');
   }
   function closeDrawer() { $id('drawer').classList.remove('open'); $id('backdrop').classList.remove('show'); drawerId = null; }
+
+  /* ---------- 7.8 Pop-up de previsión por curva histórica ----------
+     Dos modos:
+       'client' → proyecta la curva agregada del cliente (en litros) y la reparte
+                  entre sus productos según el mix histórico, respetando bloqueos.
+       'row'    → proyecta la curva de un producto puntual (en su unidad base).
+     Métodos: promedio N meses · tendencia lineal 12m · curva del año anterior
+     ajustada al nivel actual · índice estacional · plan anterior. Todos admiten
+     un ajuste % final, y cada mes se puede corregir a mano antes de aplicar. */
+  const CURVE_METHODS = {
+    ly: { name: 'Curva año anterior', help: 'Repite la forma del mismo mes del año anterior, escalada al nivel actual (promedio de los últimos N meses ÷ promedio de los mismos N meses un año antes). Respeta la estacionalidad del cliente.' },
+    seasonal: { name: 'Índice estacional', help: 'Promedio desestacionalizado de los últimos N meses × índice de cada mes calendario, calculado con toda la historia (promedio del mes ÷ promedio general).' },
+    trend: { name: 'Tendencia lineal', help: 'Recta de mínimos cuadrados sobre los últimos 12 meses, prolongada hacia adelante (con tope de 3× el promedio). Útil cuando el cliente crece o cae de forma sostenida.' },
+    avg: { name: 'Promedio N meses', help: 'Valor plano igual al promedio de los últimos N meses. La opción más estable para demanda irregular.' },
+    plan: { name: 'Plan anterior', help: 'Parte del plan anterior (DMR) cargado en el archivo, para ajustarlo con el % o mes a mes.' },
+  };
+  const modal = { mode: null, client: '', group: '', rowId: null, method: 'ly', window: 6, adj: 0, values: [], edited: [], rows: [], hist: [], plan: [], unit: 'L' };
+
+  /** Proyecta una serie histórica (array alineado a histMonths, null = sin dato) al horizonte. */
+  function projectCurve(hist, method, N, plan) {
+    const M = state.meta, H = M.fcMonths.length;
+    const keys = [], vals = [];
+    hist.forEach((v, i) => { if (v != null) { keys.push(M.histMonths[i]); vals.push(v); } });
+    const byKey = new Map(keys.map((k, j) => [k, vals[j]]));
+    const avgN = mean(vals.slice(-N));
+    if (method === 'plan') return plan.slice();
+    if (method === 'avg' || !vals.length) return M.fcMonths.map(() => avgN);
+    if (method === 'trend') {
+      const y = vals.slice(-12), { slope, intercept } = linreg(y), cap = mean(y) * 3;
+      return M.fcMonths.map((_, h) => Math.min(cap, Math.max(0, intercept + slope * (y.length + h))));
+    }
+    if (method === 'seasonal') {
+      const all = mean(vals), byM = Array.from({ length: 12 }, () => []);
+      keys.forEach((k, j) => byM[+k.slice(5) - 1].push(vals[j]));
+      const idx = byM.map((a) => (a.length && all > 0 ? Math.min(3, Math.max(0.3, mean(a) / all)) : 1));
+      const lastK = keys.slice(-N), lastV = vals.slice(-N);
+      const base = mean(lastV.map((v, j) => v / idx[+lastK[j].slice(5) - 1]));
+      return M.fcMonths.map((k) => base * idx[+k.slice(5) - 1]);
+    }
+    // 'ly': mismo mes del año anterior (o de dos años antes si el anterior también es futuro) × nivel
+    const lastK = keys.slice(-N);
+    const prevYear = lastK.map((k) => byKey.get(addMonths(k, -12))).filter((v) => v != null);
+    const level = prevYear.length === lastK.length && sum(prevYear) > 0 ? avgN / mean(prevYear) : 1;
+    return M.fcMonths.map((k) => {
+      const ly = byKey.has(addMonths(k, -12)) ? byKey.get(addMonths(k, -12)) : byKey.get(addMonths(k, -24));
+      return ly == null ? avgN : ly * Math.min(3, Math.max(0.2, level));
+    });
+  }
+  /** Redondeo acumulado de una serie (conserva el total). */
+  const cumRound = (arr) => { let acc = 0, done = 0; return arr.map((v) => { acc += Math.max(0, v); const c = Math.round(acc) - done; done += c; return c; }); };
+
+  function openForecastModal(mode, ref) {
+    const M = state.meta; if (!M) return;
+    modal.mode = mode; modal.window = state.settings.window; modal.adj = 0;
+    modal.method = M.histMonths.length >= 13 ? 'ly' : 'avg';
+    if (mode === 'row') {
+      modal.rowId = ref;
+      // en demanda intermitente la curva del año anterior amplifica pedidos esporádicos: arrancar con promedio
+      const st = state.byId.get(ref)._a.status;
+      if (st === 'interm' || st === 'none') modal.method = 'avg';
+    }
+    else {
+      modal.client = ref || state.filters.client || [...new Set(state.rows.map((r) => r.client))].sort()[0];
+      modal.group = state.filters.group || '';
+    }
+    $id('fmClientWrap').hidden = mode !== 'client';
+    $id('fmDistWrap').hidden = mode !== 'client';
+    $id('fmLockApplied').checked = mode === 'row';
+    $id('fmClient').innerHTML = [...new Set(state.rows.map((r) => r.client))].sort().map((c) => `<option>${esc(c)}</option>`).join('');
+    $id('fmMethod').innerHTML = Object.entries(CURVE_METHODS).filter(([k]) => k !== 'plan' || M.hasPlan).map(([k, m]) => `<button type="button" class="seg" data-method="${k}">${m.name}</button>`).join('');
+    $id('fmWindow').value = modal.window; $id('fmAdj').value = 0;
+    loadModalScope();
+    $id('fcModal').hidden = false; document.body.classList.add('modal-open');
+  }
+  function closeForecastModal() { $id('fcModal').hidden = true; document.body.classList.remove('modal-open'); }
+
+  /** Arma la serie histórica del alcance (fila o cliente agregado en litros). */
+  function loadModalScope() {
+    const M = state.meta;
+    if (modal.mode === 'row') {
+      const r = state.byId.get(modal.rowId);
+      modal.rows = [r]; modal.unit = M.unit; modal.hist = r.hist.slice(); modal.plan = r.plan.slice();
+      $id('fmTitle').textContent = 'Ingresar forecast · ' + r.desc;
+      $id('fmSub').textContent = `${r.client} · SKU ${r.sku} · ${r.group} · valores en ${M.unit === 'pz' ? 'piezas' : M.unit}` + (r.pac ? ` (PAC ${fmt1(r.pac)} L)` : '');
+    } else {
+      $id('fmClient').value = modal.client;
+      const groups = [...new Set(state.rows.filter((r) => r.client === modal.client).map((r) => r.group))].sort();
+      if (modal.group && !groups.includes(modal.group)) modal.group = '';
+      $id('fmGroup').innerHTML = '<option value="">Todos los grupos</option>' + groups.map((g) => `<option>${esc(g)}</option>`).join('');
+      $id('fmGroup').value = modal.group;
+      modal.rows = state.rows.filter((r) => r.client === modal.client && (!modal.group || r.group === modal.group));
+      modal.unit = M.unit === 'pz' ? 'L' : M.unit;
+      modal.hist = M.histMonths.map((_, i) => { let s = 0, any = false; modal.rows.forEach((r) => { if (r.hist[i] != null) { any = true; s += toL(r, r.hist[i]); } }); return any ? s : null; });
+      modal.plan = M.fcMonths.map((_, i) => sum(modal.rows.map((r) => toL(r, r.plan[i]))));
+      $id('fmTitle').textContent = 'Previsión por cliente · ' + modal.client.replace(/^M&P ARG /, '');
+      $id('fmSub').textContent = `${modal.rows.length} productos${modal.group ? ' del grupo ' + modal.group : ''} · curva agregada en litros, repartida por producto según su mix`;
+    }
+    recalcModal();
+  }
+
+  function recalcModal() {
+    const raw = projectCurve(modal.hist, modal.method, modal.window, modal.plan).map((v) => v * (1 + modal.adj / 100));
+    modal.values = modal.mode === 'row' ? cumRound(raw) : raw.map((v) => Math.round(v));
+    modal.edited = modal.values.map(() => false);
+    document.querySelectorAll('#fmMethod .seg').forEach((b) => b.classList.toggle('active', b.dataset.method === modal.method));
+    $id('fmHelp').textContent = CURVE_METHODS[modal.method].help;
+    renderModalTable(); renderModalChart(); renderModalDist();
+  }
+
+  /** Valor del mes de referencia "año anterior" de la serie del alcance. */
+  function modalLY(k) { const i = state.meta.histMonths.indexOf(addMonths(k, -12)); return i >= 0 ? modal.hist[i] : null; }
+  function modalCurrent() {
+    // forecast vigente del alcance (para comparar antes de aplicar)
+    return state.meta.fcMonths.map((_, i) => sum(modal.rows.map((r) => (modal.mode === 'row' ? state.fc[r.id][i] : toL(r, state.fc[r.id][i])))));
+  }
+
+  function renderModalTable() {
+    const M = state.meta, cur = modalCurrent(), u = modal.unit;
+    let h = `<table class="fm-table"><thead><tr><th>Mes</th><th class="num">Año ant.</th>${M.hasPlan ? '<th class="num">Plan ant.</th>' : ''}<th class="num">Actual</th><th class="num">Propuesto (${u})</th><th class="num">vs año ant.</th></tr></thead><tbody>`;
+    M.fcMonths.forEach((k, i) => {
+      const ly = modalLY(k), v = modal.values[i], d = ly ? v / ly - 1 : null;
+      h += `<tr><td>${mLabel(k)}</td><td class="num muted">${ly == null ? '–' : fmt(ly)}</td>${M.hasPlan ? `<td class="num muted">${fmt(modal.plan[i])}</td>` : ''}<td class="num muted">${fmt(cur[i])}</td>`
+        + `<td class="num"><input class="fm-in${modal.edited[i] ? ' edited' : ''}" data-fm="${i}" value="${fmt(v)}" inputmode="decimal"></td><td class="num"><span class="${pctClass(d)}">${fmtPct(d)}</span></td></tr>`;
+    });
+    const tLy = sum(M.fcMonths.map((k) => modalLY(k) || 0)), tV = sum(modal.values);
+    // la variación total se compara solo en los meses que tienen dato del año anterior
+    const tVcmp = sum(M.fcMonths.map((k, i) => (modalLY(k) != null ? modal.values[i] : 0))), dT = tLy ? tVcmp / tLy - 1 : null;
+    h += `</tbody><tfoot><tr><td>Total</td><td class="num">${fmt(tLy)}</td>${M.hasPlan ? `<td class="num">${fmt(sum(modal.plan))}</td>` : ''}<td class="num">${fmt(sum(cur))}</td><td class="num"><b>${fmt(tV)}</b></td><td class="num"><span class="${pctClass(dT)}" title="Solo meses con dato del año anterior">${fmtPct(dT)}</span></td></tr></tfoot></table>`;
+    $id('fmTable').innerHTML = h;
+  }
+
+  function renderModalChart() {
+    const M = state.meta, hm = M.histMonths, pad = hm.map(() => null);
+    const labels = [...hm, ...M.fcMonths].map(mLabel);
+    const lyLine = M.fcMonths.map((k) => modalLY(k));
+    const ds = [
+      { type: 'bar', label: 'Real', data: [...modal.hist, ...M.fcMonths.map(() => null)], backgroundColor: BRAND.navy, borderRadius: 3, order: 3 },
+      { type: 'line', label: 'Propuesto', data: [...pad.slice(0, -1), modal.hist.at(-1), ...modal.values], borderColor: BRAND.sky, backgroundColor: 'rgba(0,139,197,.15)', fill: false, borderWidth: 3, pointRadius: 3, order: 1 },
+      { type: 'line', label: 'Mismo mes año anterior', data: [...pad, ...lyLine], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 1.5, order: 2 },
+    ];
+    if (M.hasPlan) ds.push({ type: 'line', label: 'Plan anterior', data: [...pad, ...modal.plan], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5, order: 2 });
+    chart('chModal', { data: { labels, datasets: ds }, options: baseOpts({ tooltipUnit: modal.unit }) });
+  }
+
+  /**
+   * Reparte el total mensual del cliente entre sus productos (modo cliente).
+   * Peso de cada producto = litros de los últimos N meses. Las celdas bloqueadas
+   * se respetan: su volumen se descuenta y el resto se reparte entre las libres.
+   */
+  function distribute() {
+    const N = modal.window, respect = $id('fmRespect').checked, H = state.meta.fcMonths.length;
+    const conv = state.meta.unit === 'pz';
+    const rows = modal.rows.filter((r) => !conv || r.pac > 0);
+    const w = new Map(rows.map((r) => [r.id, toL(r, sum(r.hist.filter((v) => v != null).slice(-N)))]));
+    let base = rows.filter((r) => w.get(r.id) > 0);
+    if (!base.length) { base = rows; base.forEach((r) => w.set(r.id, 1)); }
+    const out = new Map(base.map((r) => [r.id, new Array(H).fill(0)]));
+    for (let i = 0; i < H; i++) {
+      const locked = respect ? base.filter((r) => state.manual[r.id][i]) : [];
+      const lockedL = sum(locked.map((r) => toL(r, state.fc[r.id][i])));
+      const free = base.filter((r) => !locked.includes(r));
+      const tw = sum(free.map((r) => w.get(r.id))), rem = Math.max(0, modal.values[i] - lockedL);
+      free.forEach((r) => { out.get(r.id)[i] = tw ? (rem * w.get(r.id)) / tw / (conv ? r.pac : 1) : 0; });
+      locked.forEach((r) => { out.get(r.id)[i] = null; }); // null = no tocar
+    }
+    out.forEach((arr, id) => {
+      const vals = arr.map((v) => v || 0), rounded = cumRound(vals);
+      out.set(id, arr.map((v, i) => (v === null ? null : rounded[i])));
+    });
+    const skipped = modal.rows.length - base.length;
+    return { out, w, base, skipped };
+  }
+
+  function renderModalDist() {
+    if (modal.mode !== 'client') return;
+    const { w, base, skipped } = distribute(), tw = sum(base.map((r) => w.get(r.id)));
+    const top = base.slice().sort((a, b) => w.get(b.id) - w.get(a.id)).slice(0, 8);
+    $id('fmDist').innerHTML = `<p class="muted small">El total de cada mes se reparte entre <b>${base.length}</b> productos según su peso en los últimos ${modal.window} meses${skipped ? ` · ${skipped} productos sin consumo${state.meta.unit === 'pz' ? ' o sin PAC' : ''} quedan como están` : ''}.</p>`
+      + '<table class="fm-table small"><thead><tr><th>Producto</th><th class="num">Mix</th></tr></thead><tbody>'
+      + top.map((r) => `<tr><td>${esc(r.desc)}</td><td class="num">${tw ? nf1.format((w.get(r.id) / tw) * 100) + '%' : '–'}</td></tr>`).join('')
+      + (base.length > top.length ? `<tr><td class="muted">+ ${base.length - top.length} productos más</td><td></td></tr>` : '') + '</tbody></table>';
+  }
+
+  function applyModal() {
+    const lockApplied = $id('fmLockApplied').checked, respect = $id('fmRespect').checked;
+    let n = 0;
+    if (modal.mode === 'row') {
+      const r = modal.rows[0];
+      pushUndo([r.id], 'pop-up de previsión');
+      modal.values.forEach((v, i) => {
+        if (respect && state.manual[r.id][i] && !lockApplied) return;
+        if (state.fc[r.id][i] !== v) n++;
+        state.fc[r.id][i] = Math.max(0, Math.round(v));
+        if (lockApplied) state.manual[r.id][i] = 1;
+      });
+      evalRow(r);
+    } else {
+      const { out } = distribute();
+      pushUndo([...out.keys()], 'previsión por cliente');
+      out.forEach((arr, id) => {
+        arr.forEach((v, i) => {
+          if (v === null) return;
+          if (!respect && state.manual[id][i] && !lockApplied) state.manual[id][i] = 0;
+          if (state.fc[id][i] !== v) n++;
+          state.fc[id][i] = v;
+          if (lockApplied) state.manual[id][i] = 1;
+        });
+        evalRow(state.byId.get(id));
+      });
+    }
+    touch(); closeForecastModal();
+    if (state.view === 'grid') refreshGrid(); else state.dirty.add('grid');
+    if (drawerId) openDrawer(drawerId);
+    renderView();
+    toast(`${nf0.format(n)} celdas actualizadas` + (lockApplied ? ' y bloqueadas' : ''));
+  }
+
+  function bindModalEvents() {
+    $id('fmClose').addEventListener('click', closeForecastModal);
+    $id('fmCancel').addEventListener('click', closeForecastModal);
+    $id('fcModal').addEventListener('click', (e) => { if (e.target.id === 'fcModal') closeForecastModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$id('fcModal').hidden) closeForecastModal(); });
+    $id('fmMethod').addEventListener('click', (e) => { const b = e.target.closest('[data-method]'); if (b) { modal.method = b.dataset.method; recalcModal(); } });
+    $id('fmWindow').addEventListener('change', (e) => { modal.window = Math.min(12, Math.max(3, +e.target.value || 6)); e.target.value = modal.window; recalcModal(); });
+    $id('fmAdj').addEventListener('change', (e) => { modal.adj = parseNum(e.target.value) || 0; recalcModal(); });
+    $id('fmClient').addEventListener('change', (e) => { modal.client = e.target.value; modal.group = ''; loadModalScope(); });
+    $id('fmGroup').addEventListener('change', (e) => { modal.group = e.target.value; loadModalScope(); });
+    $id('fmRespect').addEventListener('change', renderModalDist);
+    $id('fmTable').addEventListener('change', (e) => {
+      if (!e.target.classList.contains('fm-in')) return;
+      const i = +e.target.dataset.fm, v = parseNum(e.target.value);
+      if (isNaN(v) || v < 0) { toast('Valor inválido', true); renderModalTable(); return; }
+      modal.values[i] = Math.round(v); modal.edited[i] = true;
+      renderModalTable(); renderModalChart();
+    });
+    $id('fmTable').addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('fm-in') || !['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+      e.preventDefault();
+      const i = +e.target.dataset.fm + (e.key === 'ArrowUp' ? -1 : 1);
+      e.target.blur();
+      const nx = $id('fmTable').querySelector(`[data-fm="${i}"]`); if (nx) { nx.focus(); nx.select(); }
+    });
+    $id('fmTable').addEventListener('focusin', (e) => { if (e.target.classList.contains('fm-in')) e.target.select(); });
+    $id('fmApply').addEventListener('click', applyModal);
+    $id('btnClientWizard').addEventListener('click', () => openForecastModal('client'));
+  }
 
   /* ---------- 7.7 Configuración ---------- */
   function renderSettings() {
@@ -1453,6 +1701,8 @@
 
     // links: detalle, cliente, sku, borrar snapshot
     document.addEventListener('click', (e) => {
+      const fr = e.target.closest('[data-fmrow]'); if (fr) { openForecastModal('row', fr.dataset.fmrow); return; }
+      const fc = e.target.closest('[data-fmclient]'); if (fc) { openForecastModal('client', fc.dataset.fmclient); return; }
       const d = e.target.closest('[data-detail]'); if (d) { openDrawer(d.dataset.detail); return; }
       const c = e.target.closest('[data-client]'); if (c) { goFiltered({ client: c.dataset.client }); return; }
       const s = e.target.closest('[data-sku]'); if (s) { goFiltered({ text: s.dataset.sku }); return; }
@@ -1489,6 +1739,7 @@
     $id('backdrop').addEventListener('click', closeDrawer);
     document.querySelectorAll('[data-rowact]').forEach((b) => b.addEventListener('click', () => {
       if (!drawerId) return;
+      if (b.dataset.rowact === 'modal') { openForecastModal('row', drawerId); return; }
       const r = state.byId.get(drawerId), act = b.dataset.rowact, H = state.meta.fcMonths.length - 1;
       const n = massApply([r], act, 0, H, 0, false);
       refreshGridRowFull(r.id); openDrawer(r.id);
@@ -1539,6 +1790,7 @@
 
   function init() {
     bindEvents();
+    bindModalEvents();
     updateParamField();
     document.querySelectorAll('.nav-item').forEach((b) => (b.disabled = b.dataset.view !== 'settings'));
     if (loadSession()) {
@@ -1555,6 +1807,6 @@
   }
 
   // Exponer para depuración en consola
-  window.FC = { state, analyzeAll, exportExcel };
+  window.FC = { state, analyzeAll, exportExcel, openForecastModal, projectCurve };
   document.addEventListener('DOMContentLoaded', init);
 })();
