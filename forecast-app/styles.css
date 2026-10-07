@@ -341,6 +341,10 @@ td.fc .pj { display: block; }
 .pm-m input { border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px; text-align: right; }
 .pm-m input:focus, .pm-grid input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 2px rgba(0,139,197,.18); }
 
+/* ---------------- Volcado al original ---------------- */
+#origModal .f-check { padding: 4px 0; align-items: flex-start; }
+.om-list { margin: 10px 0 0; padding-left: 18px; line-height: 1.6; font-size: 12.5px; }
+
 /* ---------------- Responsive ---------------- */
 @media (max-width: 1100px) {
   .grid-2 { grid-template-columns: 1fr; }

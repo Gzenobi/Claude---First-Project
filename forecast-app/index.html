@@ -29,7 +29,8 @@
     <div class="sidebar-foot">
       <div class="file-info" id="fileInfo">Sin archivo cargado</div>
       <button class="btn btn-light btn-block" id="btnLoad">Cargar archivo Excel</button>
-      <button class="btn btn-sky btn-block" id="btnExport" disabled>Exportar Excel final</button>
+      <button class="btn btn-sky btn-block" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
+      <button class="btn btn-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
       <div class="save-state" id="saveState"></div>
     </div>
   </aside>
@@ -249,8 +250,8 @@
             <label>Meses de historia visibles en la grilla<input type="number" min="0" max="24" name="histVisible"></label>
             <label>Forecast inicial al cargar un archivo
               <select name="initFrom">
-                <option value="suggested">Sugerido (según método)</option>
-                <option value="plan">Plan anterior (DMR) si existe</option>
+                <option value="plan">Plan anterior (DMR) del archivo (recomendado si vas a volcar al original)</option>
+                <option value="suggested">Sugerido estadístico (según método)</option>
               </select>
             </label>
             <div class="form-actions">
@@ -372,6 +373,27 @@
       <div class="tb-spacer"></div>
       <button class="btn btn-ghost" id="pmCancel">Cancelar</button>
       <button class="btn btn-primary" id="pmSave">Guardar proyecto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up: volcar al Excel original -->
+<div class="modal" id="origModal" hidden role="dialog" aria-modal="true" aria-labelledby="omTitle">
+  <div class="modal-card modal-sm">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="omTitle">Volcar al Excel original</div><div class="drawer-sub">Sin tocar fórmulas, formatos ni estructura</div></div>
+      <button class="btn btn-ghost" id="omClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Se genera un archivo con bloques alineados <b>celda por celda</b> con tu original. Solo tienen valor las celdas que cambiaste; el resto va vacío. Lo pegás con <b>Pegado especial → Valores + Saltar blancos</b> y las celdas vacías no modifican nada. El archivo incluye las instrucciones paso a paso.</p>
+      <label class="f-check"><input type="checkbox" id="omKeepF"> Respetar las celdas con fórmula =estadístico (no reemplazarlas aunque mi valor sea distinto)</label>
+      <label class="f-check"><input type="checkbox" id="omInclProj"> Incluir los proyectos dentro del DMR (si no, van solo por la hoja VULOPPS para no contarlos dos veces)</label>
+      <div id="omPreview"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="omCancel">Cancelar</button>
+      <button class="btn btn-primary" id="omGo">Generar archivo</button>
     </div>
   </div>
 </div>

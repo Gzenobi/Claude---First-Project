@@ -107,7 +107,7 @@
     alertPct: 50,       // umbral de desvío forecast vs promedio
     spikeFactor: 3,     // pico = valor > N × promedio del resto
     histVisible: 6,     // meses de historia visibles en la grilla
-    initFrom: 'suggested',
+    initFrom: 'plan',   // arrancar del DMR del archivo: al volcar al original solo viajan los cambios hechos a conciencia
     projThreshold: 70,  // % mínimo de probabilidad para que un proyecto VULOPPS entre al forecast
   };
 
@@ -191,12 +191,19 @@
   /** Lee el libro. Workaround: SheetJS 0.18.5 falla con algunos metadata.bin de Excel 365
       ("Unexpected record 0x3b"); en ese caso se quita la referencia y se reintenta. */
   function readWorkbook(u8, sheets) {
-    const opts = { type: 'array', dense: true, cellFormula: false, cellHTML: false, cellText: false, cellStyles: false, cellNF: false, sheets };
+    const opts = { type: 'array', dense: true, cellFormula: true, cellHTML: false, cellText: false, cellStyles: false, cellNF: false, sheets };
     try { return XLSX.read(u8, opts); } catch (e) {
       if (!/Unexpected record|metadata/i.test(e.message)) throw e;
       return XLSX.read(stripMetadata(u8), opts);
     }
   }
+  /** Celda (r, c) de una hoja, en modo dense (0.18: array de filas) o normal. */
+  function cellAt(ws, r, c) {
+    if (ws['!data']) return (ws['!data'][r] || [])[c];
+    if (Array.isArray(ws)) return (ws[r] || [])[c];
+    return ws[XLSX.utils.encode_cell({ r, c })];
+  }
+
   function stripMetadata(u8) {
     const cfb = XLSX.CFB.read(u8, { type: 'array' });
     cfb.FullPaths.forEach((p, i) => {
@@ -282,29 +289,44 @@
    * Hoja VULOPPS: encabezado con InvoicingCountry | VulOps (OPP/VUL) | % | VulOpsName |
    * OMP GROUP | MRP | SKU | SKU Description | meses como AAAAMM (202610…) en litros.
    */
-  function parseVulopps(aoa, fcMonths) {
+  function parseVulopps(aoa, fcMonths, rng, sheetName) {
+    const R0 = rng ? rng.s.r : 0, C0 = rng ? rng.s.c : 0;
     const ymKey = (v) => { const n = typeof v === 'number' ? v : /^\d{6}$/.test(String(v || '').trim()) ? +v : NaN; const y = Math.floor(n / 100), m = n % 100; return n > 190000 && n < 210100 && m >= 1 && m <= 12 ? y + '-' + String(m).padStart(2, '0') : null; };
     let hr = -1;
     for (let r = 0; r < Math.min(aoa.length, 40); r++) { const row = (aoa[r] || []).map(norm); if (row.includes('vulops') && row.includes('sku')) { hr = r; break; } }
-    if (hr < 0) return [];
+    if (hr < 0) return { projects: [], layout: null };
     const head = aoa[hr].map(norm), col = (n) => head.indexOf(n);
     const C = { type: col('vulops'), prob: col(''), name: col('vulopsname'), client: col('ompgroup'), sku: col('sku'), desc: col('skudescription') };
     C.prob = aoa[hr].findIndex((v) => String(v || '').trim() === '%');
     const months = []; aoa[hr].forEach((v, c) => { const k = ymKey(v); if (k && fcMonths.includes(k) && !months.some((m) => m.key === k)) months.push({ c, key: k }); });
     const out = [];
+    // renglones plantilla por tipo (OPP / VUL) y lo que tenían cargado, para poder reescribirlos
+    const slots = { OPP: [], VUL: [] }, orig = {};
     for (let r = hr + 1; r < aoa.length; r++) {
       const row = aoa[r]; if (!row) continue;
+      const t = String(row[C.type] || '').trim().toUpperCase();
+      if (t === 'OPP' || t === 'VUL') {
+        slots[t].push(r + R0 + 1);
+        const o = {}; months.forEach((m) => { const v = toNum(row[m.c]); if (v) o[m.key] = v; });
+        if (Object.keys(o).length || toNum(row[C.prob])) orig[r + R0 + 1] = o;
+      }
       const sku = row[C.sku]; if (sku == null || String(sku).trim() === '' || String(sku).trim() === '0') continue;
       const liters = {}; months.forEach((m) => { const v = toNum(row[m.c]); if (v) liters[m.key] = v; });
       if (!Object.keys(liters).length) continue;
       let prob = toNum(row[C.prob]); if (prob > 0 && prob <= 1) prob *= 100;
       out.push({
-        id: 'f' + r, source: 'archivo', type: /vul/i.test(String(row[C.type] || '')) ? 'VUL' : 'OPP',
+        id: 'f' + r, source: 'archivo', slot: r + R0 + 1, type: /vul/i.test(String(row[C.type] || '')) ? 'VUL' : 'OPP',
         name: String(row[C.name] || '').trim() || '(sin nombre)', client: String(row[C.client] || '').trim(),
         sku: String(sku).trim(), desc: String(row[C.desc] || '').trim(), prob: Math.round(prob), liters,
       });
     }
-    return out;
+    const abs = (c) => c + C0;
+    const layout = {
+      sheet: sheetName, slots, orig,
+      cols: { prob: abs(C.prob), name: abs(C.name), client: abs(C.client), sku: abs(C.sku), desc: abs(C.desc) },
+      months: Object.fromEntries(months.map((m) => [m.key, abs(m.c)])),
+    };
+    return { projects: out, layout };
   }
 
   function readRecords(aoa, info) {
@@ -315,7 +337,7 @@
       const client = get(row, 'client'); const sku = get(row, 'sku');
       if ((client == null || client === '') && (sku == null || sku === '')) continue;
       if (/total/i.test(String(client || ''))) continue;
-      out.push({ row, get: (f) => get(row, f) });
+      out.push({ row, ri: r, get: (f) => get(row, f) });
     }
     return out;
   }
@@ -347,7 +369,7 @@
       const ws = book.Sheets[n]; if (!ws || !ws['!ref']) return;
       const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
       const info = analyzeSheet(aoa);
-      if (info) sheets.push({ name: n, aoa, info });
+      if (info) sheets.push({ name: n, aoa, info, ws, rng: XLSX.utils.decode_range(ws['!ref']) });
     });
     scan(wb);
     if (!sheets.length && candidates !== names) { wb = readWorkbook(u8, names); scan(wb); }
@@ -373,7 +395,8 @@
       fcMonths = pc.length ? pc.map((m) => m.key) : sc.map((m) => m.key);
       const fcIdx = new Map(fcMonths.map((k, i) => [k, i]));
       const cartMap = I.cart.map((cc) => ({ c: cc.c, i: fcMonths.findIndex((k) => +k.slice(5) === cc.month) })).filter((x) => x.i >= 0);
-      readRecords(fcSheet.aoa, I).forEach(({ row, get }) => {
+      const R0 = fcSheet.rng.s.r, C0 = fcSheet.rng.s.c;
+      readRecords(fcSheet.aoa, I).forEach(({ row, ri, get }) => {
         const pac = toNum(get('pac')) || pacFromDesc(get('desc')) || null;
         const r = {
           key: get('key') ? String(get('key')) : '',
@@ -392,6 +415,9 @@
         sc.forEach((m) => { if (fcIdx.has(m.key)) r.stat[fcIdx.get(m.key)] = toNum(row[m.c]); });
         cartMap.forEach((x) => { r.cart[x.i] = toNum(row[x.c]); });
         r.hasPlan = pc.length > 0; r.hasStat = sc.length > 0;
+        // ubicación en el Excel original: fila y celdas del DMR que son fórmula (p. ej. =BI34)
+        r.src = ri + R0 + 1;
+        r.planF = fcMonths.map((k) => { const m = pc.find((x) => x.key === k); const cell = m && cellAt(fcSheet.ws, ri + R0, m.c + C0); return cell && cell.f ? 1 : 0; });
         addRow(r);
       });
     }
@@ -448,17 +474,26 @@
     }
 
     // Proyectos (oportunidades / vulnerabilidades) desde la hoja VULOPPS
-    const projects = vulName && wb.Sheets[vulName] ? parseVulopps(XLSX.utils.sheet_to_json(wb.Sheets[vulName], { header: 1, raw: true, defval: null }), fcMonths) : [];
+    const vul = vulName && wb.Sheets[vulName] ? parseVulopps(XLSX.utils.sheet_to_json(wb.Sheets[vulName], { header: 1, raw: true, defval: null }), fcMonths, XLSX.utils.decode_range(wb.Sheets[vulName]['!ref']), vulName) : { projects: [], layout: null };
+
+    // Zona de carga del DMR en el original (para exportar un bloque "pegar valores")
+    let dmr = null;
+    if (fcSheet && fcSheet.info.hasPlan) {
+      const pcs = pickMonthCols(fcSheet.info, 'plan'), C0 = fcSheet.rng.s.c;
+      const srcs = rows.filter((r) => r.src).map((r) => r.src);
+      const cols = fcMonths.map((k) => { const m = pcs.find((x) => x.key === k); return m ? m.c + C0 : null; });
+      dmr = { sheet: fcSheet.name, firstRow: Math.min(...srcs), lastRow: Math.max(...srcs), cols, contiguous: cols.every((c, i) => c != null && (i === 0 || c === cols[i - 1] + 1)) };
+    }
 
     const ms = Math.round(performance.now() - t0);
     return {
-      projects,
+      projects: vul.projects,
       meta: {
         fileName: file.name, loadedAt: Date.now(), unit, histMonths, fcMonths,
         lastActual: histMonths[histMonths.length - 1],
         sheets: { forecast: fcSheet && fcSheet.name, actuals: actSheet && actSheet.name },
         hasPlan: rows.some((r) => r.hasPlan), hasStat: rows.some((r) => r.hasStat),
-        hasPac: unit === 'pz', parseMs: ms,
+        hasPac: unit === 'pz', parseMs: ms, dmr, vul: vul.layout,
       },
       rows,
     };
@@ -1835,6 +1870,174 @@
   }
 
   /* ===================================================================
+     8b. EXPORTACIÓN PARA EL EXCEL ORIGINAL (sin tocar fórmulas ni estructura)
+     Genera bloques alineados celda por celda con el original para usar
+     Pegado especial → Valores + Saltar blancos:
+       · Celda con cambio → valor nuevo.
+       · Celda sin cambio → vacía (el pegado la saltea: fórmula y formato intactos).
+     =================================================================== */
+  const colL = (c) => XLSX.utils.encode_col(c);
+
+  /** Calcula los cambios del DMR respecto del archivo cargado. */
+  function originalChanges(opts) {
+    const M = state.meta, D = M.dmr;
+    const out = { block: null, changes: [], replacedF: 0, keptF: 0, newRows: [] };
+    if (!D) return out;
+    const nRows = D.lastRow - D.firstRow + 1;
+    out.block = Array.from({ length: nRows }, () => new Array(D.cols.length).fill(null));
+    state.rows.forEach((r) => {
+      const vals = opts.includeProj ? r._e.fin : state.fc[r.id];
+      if (!r.src) { if (sum(vals)) out.newRows.push(r); return; } // no existe en el original
+      M.fcMonths.forEach((k, i) => {
+        if (D.cols[i] == null) return;
+        // sin recortar a 0: el DMR original puede tener negativos (ajustes) que no se tocaron
+        const nv = Math.round(vals[i]), ov = r.plan[i] || 0, isF = r.planF && r.planF[i];
+        if (nv === Math.round(ov)) return; // sin cambio → blanco
+        const ch = { r, k, cell: colL(D.cols[i]) + r.src, before: ov, after: nv, formula: !!isF };
+        if (isF && opts.keepFormulas) { ch.status = 'NO aplicado: la celda tiene fórmula (=estadístico)'; out.keptF++; out.changes.push(ch); return; }
+        out.block[r.src - D.firstRow][i] = nv;
+        ch.status = isF ? 'Reemplaza fórmula =estadístico por valor' : 'Valor';
+        if (isF) out.replacedF++;
+        out.changes.push(ch);
+      });
+    });
+    return out;
+  }
+
+  /** Bloque de la hoja VULOPPS: renglones plantilla por tipo (OPP / VUL), columnas prob…meses. */
+  function vuloppsBlock() {
+    const V = state.meta.vul; if (!V) return null;
+    const rowsAll = [...V.slots.OPP, ...V.slots.VUL].sort((a, b) => a - b);
+    if (!rowsAll.length) return null;
+    const c0 = Math.min(V.cols.prob, V.cols.name, V.cols.client, V.cols.sku, ...Object.values(V.months));
+    const c1 = Math.max(...Object.values(V.months));
+    const r0 = rowsAll[0], r1 = rowsAll.at(-1);
+    const block = Array.from({ length: r1 - r0 + 1 }, () => new Array(c1 - c0 + 1).fill(null));
+    const set = (row, col, v) => { block[row - r0][col - c0] = v; };
+    const used = new Set(), overflow = [], written = [];
+    ['OPP', 'VUL'].forEach((t) => {
+      const list = state.projects.filter((p) => p.type === t);
+      // los proyectos del archivo conservan su renglón; los manuales ocupan renglones libres
+      const free = V.slots[t].filter((row) => !list.some((p) => p.slot === row && p.source === 'archivo'));
+      list.forEach((p) => {
+        const row = p.source === 'archivo' && V.slots[t].includes(p.slot) ? p.slot : free.shift();
+        if (!row) { overflow.push(p); return; }
+        used.add(row); written.push({ p, row });
+        set(row, V.cols.prob, p.prob / 100); set(row, V.cols.name, p.name); set(row, V.cols.client, p.client);
+        set(row, V.cols.sku, isNaN(+p.sku) ? p.sku : +p.sku);
+        const before = V.orig[row] || {};
+        Object.entries(V.months).forEach(([k, col]) => { const v = p.liters[k] || 0; if (v || before[k]) set(row, col, Math.round(v)); });
+      });
+    });
+    // renglones que tenían datos y ya no tienen proyecto: se ponen en 0 (no se pueden vaciar con "Saltar blancos")
+    Object.entries(V.orig).forEach(([row, o]) => {
+      row = +row; if (used.has(row)) return;
+      set(row, V.cols.prob, 0); Object.entries(o).forEach(([k]) => set(row, V.months[k], 0));
+    });
+    return { block, r0, r1, c0, c1, overflow, written, sheet: V.sheet };
+  }
+
+  function exportOriginal(opts) {
+    const M = state.meta, D = M.dmr;
+    if (!D) { toast('Volvé a cargar el archivo original para habilitar esta exportación', true); return; }
+    if (!D.contiguous) { toast('Las columnas del DMR no son contiguas en el original: no se puede generar el bloque de pegado', true); return; }
+    const res = originalChanges(opts), vb = vuloppsBlock();
+    const now = new Date(), wb = XLSX.utils.book_new(), names = [];
+    const first = state.rows.find((r) => r.src === D.firstRow), last = state.rows.find((r) => r.src === D.lastRow);
+    const c0 = colL(D.cols[0]), c1 = colL(D.cols.at(-1));
+    const nR = D.lastRow - D.firstRow + 1, nC = D.cols.length;
+
+    // 1) Instrucciones
+    const L = [
+      ['Cómo pasar el forecast al Excel original sin tocar fórmulas ni estructura'],
+      ['Generado: ' + now.toLocaleString('es-AR') + ' · Archivo base: ' + M.fileName],
+      [],
+      ['IMPORTANTE: usá una copia del MISMO archivo que cargaste en la herramienta (mismas filas). Este archivo no reemplaza nada: solo trae valores donde hubo cambios.'],
+      [],
+      ['PASO 1 · Preparar el original'],
+      ['   a) Abrí la copia revisada del original.'],
+      [`   b) En la hoja ${D.sheet}, sacá los filtros (Datos → Borrar) para que se vean todas las filas.`],
+      [`   c) Verificá la alineación: ${D.sheet}!A${D.firstRow} debe decir "${first ? first.key || first.client + first.sku : ''}" y ${D.sheet}!A${D.lastRow} debe decir "${last ? last.key || last.client + last.sku : ''}".`],
+      [],
+      [`PASO 2 · Forecast DMR (${nR} filas × ${nC} meses, ${mLabel(M.fcMonths[0])} a ${mLabel(M.fcMonths.at(-1))}, en piezas)`],
+      ['   a) En ESTE archivo, escribí BLOQUE_DMR en el cuadro de nombres (arriba a la izquierda, al lado de la barra de fórmulas) y Enter.'],
+      ['   b) Ctrl+C.'],
+      [`   c) En el original, hoja ${D.sheet}, hacé clic en la celda ${c0}${D.firstRow}.`],
+      ['   d) Pegado especial (Ctrl+Alt+V) → marcá "Valores" y "Saltar blancos" → Aceptar.'],
+      [`   Resultado: se modifican ${res.changes.length - res.keptF} celdas (lista en la hoja Control_DMR). Todo lo demás queda igual.`],
+      [],
+    ];
+    if (vb) L.push(
+      [`PASO 3 · Proyectos (hoja ${vb.sheet}, litros)`],
+      ['   a) En ESTE archivo, escribí BLOQUE_VULOPPS en el cuadro de nombres y Enter → Ctrl+C.'],
+      [`   b) En el original, hoja ${vb.sheet}, clic en la celda ${colL(vb.c0)}${vb.r0} → Pegado especial → "Valores" + "Saltar blancos".`],
+      ['   La columna de descripción y los totales son fórmulas del original: el bloque los deja vacíos para no tocarlos.'],
+      [],
+    );
+    L.push(
+      ['PASO FINAL · Guardá el original (mismo formato .xlsb) y devolvelo.'],
+      [],
+      ['Notas'],
+      [`• ${res.replacedF} celdas tenían la fórmula =estadístico y tu valor es distinto: ` + (opts.keepFormulas ? 'NO se incluyeron (elegiste respetar fórmulas).' : 'se reemplazan por tu valor, como si lo escribieras a mano.')],
+      ['• Contenido del DMR: ' + (opts.includeProj ? 'forecast final (base + proyectos ≥ ' + state.settings.projThreshold + '%).' : 'forecast base sin proyectos (los proyectos van por la hoja VULOPPS, así no se cuentan dos veces).')],
+      res.newRows.length ? [`• ${res.newRows.length} combinaciones con forecast no existen en el original: están en la hoja Filas_nuevas para que Demanda decida cómo agregarlas.`] : ['• Todas las combinaciones con forecast existen en el original.'],
+    );
+    const wsL = XLSX.utils.aoa_to_sheet(L); wsL['!cols'] = [{ wch: 140 }];
+    XLSX.utils.book_append_sheet(wb, wsL, 'LEEME');
+
+    // 2) Bloque DMR (solo valores donde hay cambio)
+    const wsB = XLSX.utils.aoa_to_sheet(res.block.map((row) => row.map((v) => (v == null ? null : v))));
+    wsB['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: nR - 1, c: nC - 1 } });
+    XLSX.utils.book_append_sheet(wb, wsB, 'Pegar_DMR');
+    names.push({ Name: 'BLOQUE_DMR', Ref: `Pegar_DMR!$A$1:$${colL(nC - 1)}$${nR}` });
+
+    // 3) Control de cambios
+    const hC = ['Celda en el original', 'Key', 'Cliente', 'SKU', 'Descripción', 'Mes', 'Antes', 'Después', 'Diferencia', 'Estado'];
+    const dC = res.changes.map((c) => [`${D.sheet}!${c.cell}`, c.r.key, c.r.client, isNaN(+c.r.sku) ? c.r.sku : +c.r.sku, c.r.desc, mLabel(c.k), c.before, c.after, c.after - c.before, c.status]);
+    XLSX.utils.book_append_sheet(wb, buildSheet('Control de cambios del DMR (piezas)', hC, dC, [null, null, null, null, null, null, F_INT, F_INT, F_INT, null], [22, 30, 24, 10, 44, 8, 9, 9, 10, 44], 'Generado: ' + now.toLocaleString('es-AR')), 'Control_DMR');
+
+    // 4) Bloque VULOPPS
+    if (vb) {
+      const wsV = XLSX.utils.aoa_to_sheet(vb.block);
+      wsV['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: vb.r1 - vb.r0, c: vb.c1 - vb.c0 } });
+      vb.block.forEach((row, ri) => { const cell = wsV[XLSX.utils.encode_cell({ r: ri, c: state.meta.vul.cols.prob - vb.c0 })]; if (cell) cell.z = '0%'; });
+      XLSX.utils.book_append_sheet(wb, wsV, 'Pegar_VULOPPS');
+      names.push({ Name: 'BLOQUE_VULOPPS', Ref: `Pegar_VULOPPS!$A$1:$${colL(vb.c1 - vb.c0)}$${vb.r1 - vb.r0 + 1}` });
+    }
+
+    // 5) Lo que no entra en la estructura del original
+    const extra = [
+      ...res.newRows.map((r) => ['Combinación nueva (no está en el original)', r.client, isNaN(+r.sku) ? r.sku : +r.sku, r.desc, ...(opts.includeProj ? r._e.fin : state.fc[r.id])]),
+      ...(vb ? vb.overflow.map((p) => [`Proyecto ${p.type} sin renglón libre en VULOPPS`, p.client, isNaN(+p.sku) ? p.sku : +p.sku, p.name + ' · ' + p.desc, ...M.fcMonths.map((k) => p.liters[k] || 0)]) : []),
+    ];
+    if (extra.length) XLSX.utils.book_append_sheet(wb, buildSheet('Para agregar a mano o informar a Demanda', ['Motivo', 'Cliente', 'SKU', 'Descripción', ...M.fcMonths.map(mLabel)], extra, [null, null, null, null, ...M.fcMonths.map(() => F_INT)], [40, 24, 10, 44], 'Piezas para combinaciones nuevas · litros para proyectos'), 'Filas_nuevas');
+
+    wb.Workbook = { Names: names };
+    const fname = `Para_Excel_original_${M.fileName.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_')}_${now.toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fname, { compression: true });
+    saveSnapshot();
+    toast(`Generado ${fname}: ${res.changes.length - res.keptF} celdas a actualizar en el DMR`);
+  }
+
+  function openOrigModal() {
+    if (!state.meta) return;
+    if (!state.meta.dmr) { toast('Volvé a cargar el archivo original para habilitar esta exportación', true); return; }
+    updateOrigPreview();
+    $id('origModal').hidden = false; document.body.classList.add('modal-open');
+  }
+  function origOpts() { return { includeProj: $id('omInclProj').checked, keepFormulas: $id('omKeepF').checked }; }
+  function updateOrigPreview() {
+    const o = origOpts(), r = originalChanges(o), D = state.meta.dmr, vb = vuloppsBlock();
+    $id('omPreview').innerHTML = `<ul class="om-list">
+      <li><b>${nf0.format(r.changes.length - r.keptF)}</b> celdas del DMR cambian (${D.sheet}!${colL(D.cols[0])}${D.firstRow}:${colL(D.cols.at(-1))}${D.lastRow}). Todas las demás quedan intactas.</li>
+      <li><b>${nf0.format(r.replacedF + r.keptF)}</b> de esos cambios caen en celdas con fórmula =estadístico${o.keepFormulas ? ' y <b>no se aplican</b>' : ' y se reemplazan por tu valor'}.</li>
+      <li>${vb ? `<b>${vb.written.length}</b> proyectos van a la hoja ${vb.sheet}` + (vb.overflow.length ? ` · <span class="neg">${vb.overflow.length} no entran en los renglones disponibles</span>` : '') : 'El archivo no tiene hoja VULOPPS reconocible'}.</li>
+      ${r.newRows.length ? `<li><span class="neg">${r.newRows.length}</span> combinaciones con forecast no existen en el original: van a la hoja Filas_nuevas.</li>` : ''}
+    </ul>` + (r.changes.length > 0.3 * state.rows.filter((x) => x.src).length * D.cols.length
+      ? `<p class="dw-alert">Ojo: cambia más del 30% del DMR. Si arrancaste desde el sugerido estadístico, se reemplaza casi todo el plan. Para volcar solo tus correcciones, en Configuración elegí "Forecast inicial: plan anterior" y volvé a cargar el archivo.</p>` : '');
+  }
+
+  /* ===================================================================
      9. CONFIGURACIÓN Y SNAPSHOTS
      =================================================================== */
   function download(name, text) {
@@ -1898,7 +2101,7 @@
     fillFilterOptions();
     const M = state.meta;
     $id('fileInfo').innerHTML = `<b>${esc(M.fileName)}</b><br>${nf0.format(state.rows.length)} combinaciones · ${M.histMonths.length} meses de historia<br>Hojas: ${esc([M.sheets.forecast, M.sheets.actuals].filter(Boolean).join(' + '))} · unidad ${M.unit === 'pz' ? 'piezas' : M.unit}`;
-    $id('btnExport').disabled = false;
+    $id('btnExport').disabled = false; $id('btnExportOrig').disabled = false;
     document.querySelectorAll('.nav-item').forEach((b) => (b.disabled = false));
     if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; }
     $id('monthSel').innerHTML = '';
@@ -1947,6 +2150,12 @@
     ['dragleave', 'drop'].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === 'drop' || e.target === dz) dz.classList.remove('over'); }));
     document.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) handleFile(f); });
 
+    $id('btnExportOrig').addEventListener('click', openOrigModal);
+    ['omInclProj', 'omKeepF'].forEach((id) => $id(id).addEventListener('change', updateOrigPreview));
+    const closeOrig = () => { $id('origModal').hidden = true; document.body.classList.remove('modal-open'); };
+    $id('omClose').addEventListener('click', closeOrig); $id('omCancel').addEventListener('click', closeOrig);
+    $id('origModal').addEventListener('click', (e) => { if (e.target.id === 'origModal') closeOrig(); });
+    $id('omGo').addEventListener('click', () => { try { exportOriginal(origOpts()); closeOrig(); } catch (e) { console.error(e); toast('Error al exportar: ' + e.message, true); } });
     $id('btnExport').addEventListener('click', () => { try { exportExcel(); } catch (e) { console.error(e); toast('Error al exportar: ' + e.message, true); } });
 
     // filtros

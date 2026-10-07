@@ -65,6 +65,19 @@ Forecast final = Base estadística (con historia limpia)  ±  Corrección manual
 
 La exportación agrega dos hojas: **Base vs Proyectos**, con las dos capas por separado, y **Proyectos**, con el formato de VULOPPS para pegarla de vuelta en el archivo, incluyendo los proyectos cargados a mano. Las alertas de desvío comparan la **base** contra la historia limpia, porque el volumen de proyectos ya está explicado. Cartera y plan anterior se comparan contra el **total final**.
 
+## Volcar al Excel original (sin tocar fórmulas ni estructura)
+
+El archivo que se devuelve a Demanda tiene que conservar sus fórmulas y su estructura. Por eso la app **no reescribe el `.xlsb`**: genera un archivo auxiliar con bloques alineados celda por celda con el original, para pegarlos con **Pegado especial → Valores + Saltar blancos**.
+
+- **Bloque DMR** (`BLOQUE_DMR`): se pega en `Forecast!AS34` y cubre AS:BG (oct-26 a dic-27, en piezas). Solo trae valor en las celdas que cambiaron respecto del archivo cargado. El resto va vacío y "Saltar blancos" lo saltea, así que las fórmulas (por ejemplo `=BI34`), los formatos y los valores negativos originales quedan intactos.
+- **Bloque VULOPPS** (`BLOQUE_VULOPPS`): se pega en `VULOPPS!C9` y cubre los 10 renglones OPP y los 10 VUL de la plantilla. La columna H (descripción) y los totales son fórmulas: van vacíos y no se tocan.
+- **Control_DMR**: lista cada celda que cambia, con la celda exacta, antes, después y si reemplaza una fórmula `=estadístico`.
+- **Filas_nuevas**: combinaciones o proyectos que no entran en la estructura del original (no se agregan filas). Quedan para cargar a mano o informar a Demanda.
+- Opciones: respetar las celdas con fórmula `=estadístico` aunque tu valor sea distinto, e incluir los proyectos dentro del DMR. Por defecto los proyectos van solo por VULOPPS, para no contarlos dos veces.
+- El forecast inicial por defecto es el **DMR del archivo**, así solo viajan las correcciones que hiciste a conciencia. La propuesta estadística sigue disponible como *Sugerido*: está en el tooltip de cada celda, en la vista mensual, en el pop-up de curva y en la acción masiva "Completar con sugerido".
+
+Verificación realizada con el archivo real: después de simular el pegado sobre una copia del original, las 15.240 celdas del DMR quedaron con el valor esperado, solo se escribieron las celdas con cambios y las fórmulas no tocadas siguieron intactas.
+
 ## Qué lee del archivo
 
 | Hoja | Uso |
@@ -116,7 +129,7 @@ forecast-app/
 5. **Operaciones de forecast**: edición, acciones masivas que respetan los bloqueos y pila de deshacer.
 6. **Filtros**: comunes a todas las vistas.
 7. **Vistas**: pop-up de previsión por curva (`projectCurve` + reparto por mix con `distribute`), dashboard (Chart.js), grilla (DataTables con `deferRender` y paginación, para que con miles de filas solo se dibuje la página visible), vista mensual, resúmenes, alertas, detalle y configuración. Cada vista se re-renderiza solo cuando está activa y marcada como "sucia".
-8. **Exportación**: SheetJS arma hasta 7 hojas (*Forecast Final*, *Base vs Proyectos*, *Resumen por Producto*, *Resumen por Cliente*, *Alertas*, *Proyectos*, *Parámetros*) con título, fecha de generación, autofiltro, anchos de columna y formatos numéricos (`#,##0`, `0.0%`).
+8. **Exportación**: además del Excel de análisis, `exportOriginal` genera los bloques de pegado (8b) para el original. SheetJS arma hasta 7 hojas (*Forecast Final*, *Base vs Proyectos*, *Resumen por Producto*, *Resumen por Cliente*, *Alertas*, *Proyectos*, *Parámetros*) con título, fecha de generación, autofiltro, anchos de columna y formatos numéricos (`#,##0`, `0.0%`).
 9. **Configuración y snapshots**: export/import JSON con reglas + valores manuales + bloqueos.
 10. **Inicialización y eventos**: delegación de eventos y restauración de sesión.
 
