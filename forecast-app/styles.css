@@ -316,6 +316,31 @@ body.modal-open { overflow: hidden; }
 .fm-in.edited { background: var(--manual-bg); font-weight: bold; }
 #fmDistWrap { margin-top: 10px; }
 
+/* ---------------- Proyectos y limpieza de historia ---------------- */
+.pj { display: block; font-size: 10px; line-height: 1; color: var(--violet); font-weight: bold; text-align: right; padding-right: 6px; }
+.pj.neg { color: var(--fuchsia); }
+span.pj { display: inline-block; }
+td.fc .pj { display: block; }
+.v-excl { color: var(--gray-light); text-decoration: line-through; }
+.nb-violet { background: var(--violet); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
+.chip { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 8px; cursor: pointer; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; min-width: 54px; }
+.chip b { color: var(--navy); font-size: 12px; }
+.chip.sug { border-color: var(--violet); box-shadow: inset 0 0 0 1px var(--violet); }
+.chip.on { background: #eef0f2; border-style: dashed; }
+.chip.on b { color: var(--gray-dark); text-decoration: line-through; }
+.drawer-body .section-sub { margin-top: 6px; }
+.modal-card.modal-sm { width: min(680px, 100%); }
+.pm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.pm-grid label { display: flex; flex-direction: column; gap: 4px; font-weight: bold; font-size: 12px; color: #374151; }
+.pm-grid .pm-wide { grid-column: 1 / -1; }
+.pm-grid input, .pm-grid select, .pm-spread input, .pm-spread select { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-weight: normal; }
+.pm-spread { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 10px; font-size: 12px; color: var(--muted); }
+.pm-months { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.pm-m { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); font-weight: bold; }
+.pm-m input { border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px; text-align: right; }
+.pm-m input:focus, .pm-grid input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 2px rgba(0,139,197,.18); }
+
 /* ---------------- Responsive ---------------- */
 @media (max-width: 1100px) {
   .grid-2 { grid-template-columns: 1fr; }

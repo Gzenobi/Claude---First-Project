@@ -47,6 +47,24 @@ Para un producto puntual usá el botón **✎** de la fila, o **Ingresar forecas
 
 Cualquier aplicación se puede revertir con **Deshacer**.
 
+## Proyectos: propuesta estadística + VULOPPS + corrección manual
+
+El forecast final se arma en tres capas:
+
+```
+Forecast final = Base estadística (con historia limpia)  ±  Corrección manual  +  Proyectos VULOPPS ≥ 70%
+```
+
+1. **Limpieza de historia.** En el detalle de cada producto, marcá los meses que fueron un proyecto puntual (chips de *Limpieza de historia*). Los meses que el sistema detecta como pico aparecen con borde violeta. Esos meses dejan de contar para el promedio, la tendencia, la curva del pop-up y el mix de reparto. También hay acciones masivas: *Limpieza: excluir picos sugeridos* y *Limpieza: restaurar historia completa*. Después usá *Completar con sugerido* para que la base tome los nuevos promedios.
+2. **Base + corrección manual.** Es la grilla de siempre: sugerido, pop-up por curva y ediciones bloqueadas.
+3. **Proyectos.** Se leen de la hoja **VULOPPS** del archivo: tipo OPP/VUL, %, nombre, cliente (OMP GROUP), SKU y litros por mes en columnas AAAAMM. En la vista **Proyectos** se pueden agregar, editar o eliminar con un pop-up, que tiene un ayudante para repartir un total entre meses.
+   - **OPP suma y VUL resta.** Solo entran los que tienen **probabilidad ≥ 70%**, y ese umbral se puede cambiar.
+   - Los litros se convierten a piezas con el PAC del producto. Si el cliente nunca compró ese producto, se crea una fila nueva de origen "proyecto".
+   - En la grilla, cada mes muestra la base (editable) y debajo, en violeta, el aporte de proyectos. La columna *Total final* incluye ambos.
+   - Al cargar un archivo nuevo, los proyectos de VULOPPS se reemplazan por los del archivo; los cargados a mano se conservan.
+
+La exportación agrega dos hojas: **Base vs Proyectos**, con las dos capas por separado, y **Proyectos**, con el formato de VULOPPS para pegarla de vuelta en el archivo, incluyendo los proyectos cargados a mano. Las alertas de desvío comparan la **base** contra la historia limpia, porque el volumen de proyectos ya está explicado. Cartera y plan anterior se comparan contra el **total final**.
+
 ## Qué lee del archivo
 
 | Hoja | Uso |
@@ -54,6 +72,7 @@ Cualquier aplicación se puede revertir con **Deshacer**.
 | `Forecast` (opcional) | Base de filas: KEY, cliente (OMP GROUP), KAM, SKU, code shape, descripción, sub-brand, PAC, clase estadística, historia **en piezas** (bloque *Actuals*), plan anterior (bloque *DMR*), estadístico (bloque *Estadístico*) y cartera (columnas 10/11/12 bajo *Carteira*). |
 | `Actuals` | Historia por cliente × producto (en litros). Completa el ProductId y agrega las combinaciones que tienen consumo pero no figuran en la hoja Forecast, marcadas como "solo Actuals", con el PAC estimado a partir de la descripción. |
 | `KAM` | Completa el KAM de las filas que no lo traen. |
+| `VULOPPS` | Proyectos: oportunidades (OPP) y vulnerabilidades (VUL) con probabilidad, en litros por mes. |
 
 La detección es automática: busca la fila de encabezados por nombre de columna (`OMPGroupName`, `ProductId`, `Description`, `CODE SAP`, etc.), reconoce las columnas de meses en formato fecha y clasifica cada bloque (real, plan o estadístico, y piezas o litros) a partir de las etiquetas de las filas de arriba. Si el archivo solo tiene una hoja tipo Actuals, trabaja en litros y propone un horizonte de 12 meses.
 
@@ -97,7 +116,7 @@ forecast-app/
 5. **Operaciones de forecast**: edición, acciones masivas que respetan los bloqueos y pila de deshacer.
 6. **Filtros**: comunes a todas las vistas.
 7. **Vistas**: pop-up de previsión por curva (`projectCurve` + reparto por mix con `distribute`), dashboard (Chart.js), grilla (DataTables con `deferRender` y paginación, para que con miles de filas solo se dibuje la página visible), vista mensual, resúmenes, alertas, detalle y configuración. Cada vista se re-renderiza solo cuando está activa y marcada como "sucia".
-8. **Exportación**: SheetJS arma 5 hojas (*Forecast Final*, *Resumen por Producto*, *Resumen por Cliente*, *Alertas*, *Parámetros*) con título, fecha de generación, autofiltro, anchos de columna y formatos numéricos (`#,##0`, `0.0%`).
+8. **Exportación**: SheetJS arma hasta 7 hojas (*Forecast Final*, *Base vs Proyectos*, *Resumen por Producto*, *Resumen por Cliente*, *Alertas*, *Proyectos*, *Parámetros*) con título, fecha de generación, autofiltro, anchos de columna y formatos numéricos (`#,##0`, `0.0%`).
 9. **Configuración y snapshots**: export/import JSON con reglas + valores manuales + bloqueos.
 10. **Inicialización y eventos**: delegación de eventos y restauración de sesión.
 

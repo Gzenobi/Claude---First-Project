@@ -22,6 +22,7 @@
       <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Vista mensual</button>
       <button class="nav-item" data-view="clients"><span class="ico">◉</span>Resumen por cliente</button>
       <button class="nav-item" data-view="products"><span class="ico">◈</span>Resumen por producto</button>
+      <button class="nav-item" data-view="projects"><span class="ico">◆</span>Proyectos <span class="nav-badge nb-violet" id="navProjCount" hidden>0</span></button>
       <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Alertas <span class="nav-badge" id="navAlertCount">0</span></button>
       <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Configuración</button>
     </nav>
@@ -65,6 +66,8 @@
           <option value="seasonal">Estacionales</option>
           <option value="risk">Riesgo de quiebre</option>
           <option value="locked">Con valores bloqueados</option>
+          <option value="proj">Con proyectos</option>
+          <option value="excl">Con meses excluidos (limpieza)</option>
         </select>
       </div>
       <label class="f-check"><input type="checkbox" id="fHideDead" checked> Ocultar sin consumo ni forecast</label>
@@ -138,6 +141,8 @@
               <option value="zero">Poner en cero</option>
               <option value="lock">Bloquear celdas</option>
               <option value="unlock">Desbloquear celdas</option>
+              <option value="cleanspikes">Limpieza: excluir picos sugeridos (proyectos)</option>
+              <option value="restorehist">Limpieza: restaurar historia completa</option>
             </select>
           </div>
           <div class="tb-group" id="mParamWrap" hidden>
@@ -202,6 +207,24 @@
       <div class="card table-card">
         <div class="section-bar">Alertas <span class="bar-note">se recalculan en cada edición</span></div>
         <div class="table-scroll"><table id="tblAlerts" class="display compact" style="width:100%"></table></div>
+      </div>
+    </section>
+
+    <!-- PROYECTOS (VULOPPS) -->
+    <section class="view" id="view-projects">
+      <div class="card">
+        <div class="section-bar">Forecast final = base estadística (con corrección manual) + proyectos</div>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="btnNewProject">+ Nuevo proyecto</button>
+          <div class="tb-group"><label>Umbral de probabilidad</label><div><input id="pjThreshold" type="number" min="0" max="100" style="width:70px"> %</div></div>
+          <div class="tb-spacer"></div>
+          <div class="muted small" id="pjNote"></div>
+        </div>
+        <p class="hint">Los proyectos se leen de la hoja <b>VULOPPS</b> al cargar el archivo. <b>OPP</b> (oportunidad) suma y <b>VUL</b> (vulnerabilidad) resta, en litros. Solo entran al forecast los que tienen probabilidad mayor o igual al umbral. Para que un proyecto ya consumido no infle la estadística, marcá esos meses como “proyecto” en el detalle de cada producto (limpieza de historia).</p>
+      </div>
+      <div class="kpis" id="pjKpis"></div>
+      <div class="card table-card">
+        <div class="table-scroll"><table id="tblProjects" class="display compact" style="width:100%"></table></div>
       </div>
     </section>
 
@@ -272,6 +295,12 @@
       <button class="btn btn-ghost" data-rowact="lock">Bloquear fila</button>
       <button class="btn btn-ghost" data-rowact="unlock">Desbloquear fila</button>
     </div>
+    <div class="section-sub">Limpieza de historia</div>
+    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los sugeridos por el sistema aparecen con borde violeta.</p>
+    <div class="chips" id="dwClean"></div>
+    <div class="section-sub">Proyectos (VULOPPS)</div>
+    <div id="dwProj"></div>
+    <div class="section-sub">Alertas</div>
     <div id="dwAlerts"></div>
   </div>
 </aside>
@@ -310,6 +339,39 @@
       <div class="tb-spacer"></div>
       <button class="btn btn-ghost" id="fmCancel">Cancelar</button>
       <button class="btn btn-primary" id="fmApply">Aplicar al forecast</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up de alta / edición de proyecto -->
+<div class="modal" id="projModal" hidden role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+  <div class="modal-card modal-sm">
+    <div class="modal-head">
+      <div><div class="drawer-title" id="pmTitle">Nuevo proyecto</div><div class="drawer-sub">Volumen en litros, como en la hoja VULOPPS</div></div>
+      <button class="btn btn-ghost" id="pmClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pm-grid">
+        <label>Tipo<select id="pmType"><option value="OPP">OPP · Oportunidad (suma)</option><option value="VUL">VUL · Vulnerabilidad (resta)</option></select></label>
+        <label>Probabilidad %<input id="pmProb" type="number" min="0" max="100"></label>
+        <label class="pm-wide">Nombre del proyecto<input id="pmName" placeholder="Ej. Obra puerto Rosario – pintura tanques"></label>
+        <label class="pm-wide">Cliente<select id="pmClient"></select></label>
+        <label class="pm-wide">Producto (SKU)<input id="pmSku" list="pmSkuList" placeholder="Escribí SKU o descripción…"><datalist id="pmSkuList"></datalist></label>
+      </div>
+      <div class="section-sub" style="margin-top:12px">Litros por mes</div>
+      <div class="pm-spread">
+        <span>Repartir</span><input id="pmTotal" inputmode="decimal" placeholder="Total L" style="width:100px">
+        <span>entre</span><select id="pmFrom"></select><span>y</span><select id="pmTo"></select>
+        <button class="btn btn-ghost btn-xs" id="pmSpread">Repartir</button>
+      </div>
+      <div class="pm-months" id="pmMonths"></div>
+      <p id="pmSum" class="small"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="pmDelete">Eliminar</button>
+      <div class="tb-spacer"></div>
+      <button class="btn btn-ghost" id="pmCancel">Cancelar</button>
+      <button class="btn btn-primary" id="pmSave">Guardar proyecto</button>
     </div>
   </div>
 </div>

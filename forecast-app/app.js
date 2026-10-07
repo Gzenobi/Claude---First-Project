@@ -108,6 +108,7 @@
     spikeFactor: 3,     // pico = valor > N × promedio del resto
     histVisible: 6,     // meses de historia visibles en la grilla
     initFrom: 'suggested',
+    projThreshold: 70,  // % mínimo de probabilidad para que un proyecto VULOPPS entre al forecast
   };
 
   /**
@@ -123,6 +124,9 @@
     byId: new Map(),
     fc: {},
     manual: {},
+    projects: [],       // capa de proyectos (VULOPPS + manuales): { id, type OPP|VUL, name, client, sku, desc, prob, liters{mes}, source }
+    projRow: {},        // derivado: piezas netas de proyectos incluidos por fila y mes
+    excl: {},           // limpieza de historia: excl[id] = ['2026-09', …] meses marcados como proyecto
     settings: { ...DEFAULT_SETTINGS },
     filters: { client: '', kam: '', group: '', cls: '', text: '', status: '', hideDead: true },
     selected: new Set(),
@@ -135,7 +139,8 @@
     if (!state.meta) return;
     try {
       const rows = state.rows.map(({ _a, _e, ...r }) => r); // sin campos derivados
-      localStorage.setItem(LS_SESSION, JSON.stringify({ v: 1, meta: state.meta, rows, fc: state.fc, manual: state.manual, settings: state.settings, savedAt: Date.now() }));
+      const projects = state.projects.map(({ _row, _incl, _noPac, ...pj }) => pj);
+      localStorage.setItem(LS_SESSION, JSON.stringify({ v: 1, meta: state.meta, rows, fc: state.fc, manual: state.manual, settings: state.settings, projects, excl: state.excl, savedAt: Date.now() }));
       $id('saveState').textContent = 'Guardado automático ' + new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       $id('saveState').textContent = 'No se pudo guardar (espacio local lleno)';
@@ -147,6 +152,7 @@
       const s = JSON.parse(localStorage.getItem(LS_SESSION) || 'null');
       if (!s || s.v !== 1 || !s.rows) return false;
       state.meta = s.meta; state.rows = s.rows; state.fc = s.fc || {}; state.manual = s.manual || {};
+      state.projects = s.projects || []; state.excl = s.excl || {};
       state.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
       return true;
     } catch (e) { return false; }
@@ -272,6 +278,35 @@
     return v > 0 ? v : null;
   }
 
+  /**
+   * Hoja VULOPPS: encabezado con InvoicingCountry | VulOps (OPP/VUL) | % | VulOpsName |
+   * OMP GROUP | MRP | SKU | SKU Description | meses como AAAAMM (202610…) en litros.
+   */
+  function parseVulopps(aoa, fcMonths) {
+    const ymKey = (v) => { const n = typeof v === 'number' ? v : /^\d{6}$/.test(String(v || '').trim()) ? +v : NaN; const y = Math.floor(n / 100), m = n % 100; return n > 190000 && n < 210100 && m >= 1 && m <= 12 ? y + '-' + String(m).padStart(2, '0') : null; };
+    let hr = -1;
+    for (let r = 0; r < Math.min(aoa.length, 40); r++) { const row = (aoa[r] || []).map(norm); if (row.includes('vulops') && row.includes('sku')) { hr = r; break; } }
+    if (hr < 0) return [];
+    const head = aoa[hr].map(norm), col = (n) => head.indexOf(n);
+    const C = { type: col('vulops'), prob: col(''), name: col('vulopsname'), client: col('ompgroup'), sku: col('sku'), desc: col('skudescription') };
+    C.prob = aoa[hr].findIndex((v) => String(v || '').trim() === '%');
+    const months = []; aoa[hr].forEach((v, c) => { const k = ymKey(v); if (k && fcMonths.includes(k) && !months.some((m) => m.key === k)) months.push({ c, key: k }); });
+    const out = [];
+    for (let r = hr + 1; r < aoa.length; r++) {
+      const row = aoa[r]; if (!row) continue;
+      const sku = row[C.sku]; if (sku == null || String(sku).trim() === '' || String(sku).trim() === '0') continue;
+      const liters = {}; months.forEach((m) => { const v = toNum(row[m.c]); if (v) liters[m.key] = v; });
+      if (!Object.keys(liters).length) continue;
+      let prob = toNum(row[C.prob]); if (prob > 0 && prob <= 1) prob *= 100;
+      out.push({
+        id: 'f' + r, source: 'archivo', type: /vul/i.test(String(row[C.type] || '')) ? 'VUL' : 'OPP',
+        name: String(row[C.name] || '').trim() || '(sin nombre)', client: String(row[C.client] || '').trim(),
+        sku: String(sku).trim(), desc: String(row[C.desc] || '').trim(), prob: Math.round(prob), liters,
+      });
+    }
+    return out;
+  }
+
   function readRecords(aoa, info) {
     const C = info.cols; const out = [];
     const get = (row, f) => (C[f] != null ? row[C[f]] : null);
@@ -302,6 +337,8 @@
     let candidates = names.filter((n) => /actual|^forecast$|hist|consumo/i.test(n.trim()));
     if (!candidates.length) candidates = names;
     else if (names.includes('KAM')) candidates.push('KAM');
+    const vulName = names.find((n) => /vul\s*opps|vulopps/i.test(n));
+    if (vulName && !candidates.includes(vulName)) candidates.push(vulName);
     loading('Procesando hojas: ' + candidates.join(', ') + '…'); await nextTick();
     let wb = readWorkbook(u8, candidates);
 
@@ -410,8 +447,12 @@
       rows.forEach((r) => { if (!r.kam && kmap.has(r.client)) r.kam = kmap.get(r.client); });
     }
 
+    // Proyectos (oportunidades / vulnerabilidades) desde la hoja VULOPPS
+    const projects = vulName && wb.Sheets[vulName] ? parseVulopps(XLSX.utils.sheet_to_json(wb.Sheets[vulName], { header: 1, raw: true, defval: null }), fcMonths) : [];
+
     const ms = Math.round(performance.now() - t0);
     return {
+      projects,
       meta: {
         fileName: file.name, loadedAt: Date.now(), unit, histMonths, fcMonths,
         lastActual: histMonths[histMonths.length - 1],
@@ -433,6 +474,13 @@
   /** Volumen en litros de un valor de la fila (si la unidad base es piezas usa el PAC). */
   const toL = (r, v) => (state.meta.unit === 'pz' ? v * (r.pac || 0) : v);
 
+  /** Historia sin los meses marcados como proyecto (limpieza de historia). */
+  function cleanHist(r) {
+    const ex = state.excl[r.id];
+    if (!ex || !ex.length) return r.hist;
+    return r.hist.map((v, i) => (ex.includes(state.meta.histMonths[i]) ? null : v));
+  }
+
   function linreg(y) {
     const n = y.length; if (n < 2) return { slope: 0, intercept: y[0] || 0 };
     const xm = (n - 1) / 2, ym = mean(y);
@@ -448,10 +496,11 @@
   }
 
   function analyze(r) {
+    const hist = cleanHist(r); // meses marcados como proyecto quedan fuera (null)
     const S = state.settings, N = S.window, M = state.meta;
     // serie con datos (ignora meses null = sin información)
     const idx = []; const vals = [];
-    r.hist.forEach((v, i) => { if (v != null) { idx.push(i); vals.push(v); } });
+    hist.forEach((v, i) => { if (v != null) { idx.push(i); vals.push(v); } });
     const tail = vals.slice(-N);
     const avgN = mean(tail);
     const prevN = mean(vals.slice(-2 * N, -N));
@@ -478,8 +527,8 @@
     // Estacionalidad básica: correlación con el mismo mes del año anterior + variabilidad
     let seasonal = false, seasR = 0; const sIdx = new Array(12).fill(1);
     const pairsA = [], pairsB = [];
-    for (let i = r.hist.length - 1; i >= 12 && pairsA.length < 12; i--) {
-      if (r.hist[i] != null && r.hist[i - 12] != null) { pairsA.push(r.hist[i]); pairsB.push(r.hist[i - 12]); }
+    for (let i = hist.length - 1; i >= 12 && pairsA.length < 12; i--) {
+      if (hist[i] != null && hist[i - 12] != null) { pairsA.push(hist[i]); pairsB.push(hist[i - 12]); }
     }
     if (pairsA.length >= 6 && avg12 > 0) {
       seasR = pearson(pairsA, pairsB);
@@ -488,7 +537,7 @@
       const allMean = mean(vals);
       if (seasonal && allMean > 0) {
         const byM = Array.from({ length: 12 }, () => []);
-        r.hist.forEach((v, i) => { if (v != null) byM[+M.histMonths[i].slice(5) - 1].push(v); });
+        hist.forEach((v, i) => { if (v != null) byM[+M.histMonths[i].slice(5) - 1].push(v); });
         byM.forEach((a, k) => { if (a.length) sIdx[k] = Math.min(3, Math.max(0.2, mean(a) / allMean)); });
       }
     }
@@ -537,18 +586,73 @@
     PLAN: 'Cambio fuerte vs plan anterior',
   };
 
+  /** Forecast final de una fila = base (estadístico + correcciones) + proyectos incluidos. */
+  function finalArr(r) {
+    const b = state.fc[r.id], p = state.projRow[r.id];
+    return p ? b.map((v, i) => Math.max(0, v + p[i])) : b;
+  }
+
+  /**
+   * Arma la capa de proyectos: cada proyecto con probabilidad ≥ umbral suma (OPP) o
+   * resta (VUL) sus litros convertidos a piezas con el PAC de la fila cliente × SKU.
+   * Si la combinación no existe en el forecast, se crea una fila nueva de origen "proyecto".
+   */
+  function buildProjLayer() {
+    const M = state.meta; if (!M) return;
+    state.projRow = {};
+    const idx = new Map(state.rows.map((r) => [r.client + '|' + r.sku, r]));
+    state.projects.forEach((p) => {
+      p._incl = p.prob >= state.settings.projThreshold;
+      let r = idx.get(p.client + '|' + p.sku);
+      if (!r && p.client && p.sku) { r = createProjectRow(p); idx.set(p.client + '|' + p.sku, r); }
+      p._row = r ? r.id : null;
+      if (!r) return;
+      const pac = M.unit === 'pz' ? r.pac || pacFromDesc(r.desc || p.desc) : 1;
+      p._noPac = M.unit === 'pz' && !pac;
+      if (!p._incl) return;
+      const sign = p.type === 'VUL' ? -1 : 1;
+      const pcs = cumRound(M.fcMonths.map((k) => (p.liters[k] || 0) / (pac || 1)));
+      const arr = state.projRow[r.id] || (state.projRow[r.id] = M.fcMonths.map(() => 0));
+      pcs.forEach((v, i) => (arr[i] += sign * v));
+    });
+  }
+  function createProjectRow(p) {
+    const M = state.meta, kam = (state.rows.find((x) => x.client === p.client && x.kam) || {}).kam || '';
+    const r = {
+      id: p.client + p.sku, key: p.client + p.sku, client: p.client, sku: p.sku, productId: '', shape: '', desc: p.desc || '(producto de proyecto)',
+      group: (state.rows.find((x) => x.sku === p.sku) || {}).group || '(proyecto)', kam, cls: '', pc: '', type: '',
+      pac: (state.rows.find((x) => x.sku === p.sku && x.pac) || {}).pac || pacFromDesc(p.desc), origin: 'P',
+      hist: M.histMonths.map(() => 0), plan: M.fcMonths.map(() => 0), stat: M.fcMonths.map(() => 0), cart: M.fcMonths.map(() => 0), hasPlan: false, hasStat: false,
+    };
+    while (state.byId.has(r.id)) r.id += '#p';
+    state.rows.push(r); state.byId.set(r.id, r);
+    state.fc[r.id] = M.fcMonths.map(() => 0); state.manual[r.id] = M.fcMonths.map(() => 0);
+    r._a = analyze(r);
+    return r;
+  }
+  /** Recalcula la capa de proyectos y la evaluación de todas las filas. */
+  function refreshProjects() {
+    buildProjLayer();
+    state.rows.forEach((r) => { if (!r._a) r._a = analyze(r); r._e = evaluate(r); });
+    fillFilterOptions();
+    touch(); state.dirty.add('grid'); state.dirty.add('projects');
+  }
+
   function evaluate(r) {
     const a = r._a, S = state.settings, M = state.meta;
-    const fc = state.fc[r.id];
+    const base = state.fc[r.id], proj = state.projRow[r.id] || null;
+    const fc = finalArr(r);
     const H = fc.length, w = Math.min(H, S.window);
-    const fcSum = sum(fc), fcAvgW = mean(fc.slice(0, w)), fc3 = sum(fc.slice(0, 3));
+    const baseSum = sum(base), projSum = proj ? sum(proj) : 0;
+    // el desvío vs histórico se mide sobre la BASE: los proyectos son volumen explicado
+    const fcSum = sum(fc), fcAvgW = mean(base.slice(0, w)), fc3 = sum(fc.slice(0, 3));
     const dev = a.avgN > 0 ? fcAvgW / a.avgN - 1 : (fcAvgW > 0 ? Infinity : 0);
     const planSum = sum(r.plan);
     const devPlan = planSum > 0 ? fcSum / planSum - 1 : null;
     const alerts = [];
     const lim = S.alertPct / 100;
     if (a.avgN > 0 && Math.abs(dev) > lim) alerts.push({ t: 'DEV', sev: Math.abs(dev) > 2 * lim ? 'high' : 'med', msg: `Forecast ${fmtPct(dev)} vs promedio ${S.window}m (${fmt1(fcAvgW)} vs ${fmt1(a.avgN)} ${M.unit}/mes)` });
-    if (a.avgN === 0 && fcSum > 0) alerts.push({ t: 'NOHIST', sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast ${fmt(fcSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
+    if (a.avgN === 0 && baseSum > 0) alerts.push({ t: 'NOHIST', sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast base ${fmt(baseSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
     if (a.avgN > 0 && fc3 === 0) alerts.push({ t: 'NOFC', sev: 'high', msg: `Consume ${fmt1(a.avgN)} ${M.unit}/mes y no tiene forecast en los próximos 3 meses` });
     if (a.spikes.length) alerts.push({ t: 'SPIKE', sev: 'low', msg: 'Pico en ' + a.spikes.map(mLabel).join(', ') + ' (distorsiona el promedio)' });
     let risk = '';
@@ -558,14 +662,14 @@
     if (devPlan != null && Math.abs(devPlan) > lim) alerts.push({ t: 'PLAN', sev: 'low', msg: `Total ${fmtPct(devPlan)} vs plan anterior (${fmt(fcSum)} vs ${fmt(planSum)})` });
     const man = state.manual[r.id];
     return {
-      fcSum, fcAvgW, fc3, dev, planSum, devPlan, alerts, risk,
-      fcL: toL(r, fcSum), avgL: toL(r, a.avgN),
+      fcSum, fcAvgW, fc3, dev, planSum, devPlan, alerts, risk, fin: fc, baseSum, projSum,
+      fcL: toL(r, fcSum), avgL: toL(r, a.avgN), projL: toL(r, projSum),
       locked: man ? man.reduce((s, v) => s + (v ? 1 : 0), 0) : 0,
-      dead: a.sum12 === 0 && fcSum === 0 && planSum === 0,
+      dead: a.sum12 === 0 && fcSum === 0 && planSum === 0 && !proj,
     };
   }
 
-  function analyzeAll() { state.rows.forEach((r) => { r._a = analyze(r); r._e = evaluate(r); }); }
+  function analyzeAll() { state.rows.forEach((r) => { r._a = analyze(r); }); buildProjLayer(); state.rows.forEach((r) => { if (!r._a) r._a = analyze(r); r._e = evaluate(r); }); }
   function evalRow(r) { r._e = evaluate(r); }
 
   /** Inicializa el forecast de trabajo para filas sin valores (nuevo archivo). */
@@ -689,6 +793,8 @@
       case 'seasonal': return a.seasonal;
       case 'risk': return !!e.risk;
       case 'locked': return e.locked > 0;
+      case 'proj': return !!e.projSum;
+      case 'excl': return !!(state.excl[r.id] && state.excl[r.id].length);
       default: return true;
     }
   }
@@ -727,7 +833,7 @@
     $id('fClass').value = f.cls; $id('fText').value = f.text; $id('fStatus').value = f.status; $id('fHideDead').checked = f.hideDead;
   }
   function onFiltersChanged() {
-    ['dashboard', 'grid', 'monthly', 'clients', 'products', 'alerts'].forEach((v) => state.dirty.add(v));
+    ['dashboard', 'grid', 'monthly', 'clients', 'products', 'alerts', 'projects'].forEach((v) => state.dirty.add(v));
     renderView();
   }
 
@@ -741,6 +847,7 @@
     clients: ['Resumen por cliente', ''],
     products: ['Resumen por producto', ''],
     alerts: ['Alertas', 'Diferencias importantes, riesgos y picos'],
+    projects: ['Proyectos', 'Oportunidades y vulnerabilidades (VULOPPS) que se suman al forecast estadístico'],
     settings: ['Configuración', 'Reglas de cálculo, configuración y datos locales'],
   };
 
@@ -752,7 +859,7 @@
     const t = VIEW_TITLES[v] || ['Cargar archivo', 'Forecast mensual de consumo'];
     $id('viewTitle').textContent = t[0];
     $id('viewSubtitle').textContent = t[1] || (state.meta ? `Último mes real: ${mLabel(state.meta.lastActual)} · Horizonte: ${mLabel(state.meta.fcMonths[0])} a ${mLabel(state.meta.fcMonths.at(-1))}` : '');
-    $id('filters').hidden = !state.meta || v === 'settings';
+    $id('filters').hidden = !state.meta || v === 'settings' || v === 'projects';
     $id('btnFilters').hidden = $id('filters').hidden;
     $id('sidebar').classList.remove('open');
     state.dirty.add(v);
@@ -772,11 +879,14 @@
     else if (v === 'products') renderProducts(rows);
     else if (v === 'alerts') renderAlerts(rows);
     else if (v === 'settings') renderSettings();
+    else if (v === 'projects') renderProjects();
   }
 
   function updateAlertBadge() {
     const n = state.rows.reduce((s, r) => s + (r._e && r._e.alerts.some((a) => a.sev !== 'low') ? 1 : 0), 0);
     $id('navAlertCount').textContent = nf0.format(n);
+    const np = state.projects.filter((p) => p._incl).length;
+    $id('navProjCount').textContent = np; $id('navProjCount').hidden = !np;
   }
 
   /* ---------- 7.1 Dashboard ---------- */
@@ -800,10 +910,10 @@
   function renderDashboard(rows) {
     const M = state.meta, S = state.settings, H = M.fcMonths.length;
     const uL = M.unit === 'pz' ? 'L' : M.unit;
-    let next = 0, avgL = 0, horizon = 0, plan = 0, planHas = false, alerts = 0, alertsMain = 0, alertsHigh = 0, risk = 0, riskHigh = 0, none = 0, lockedRows = 0, lockedCells = 0, active = 0;
+    let next = 0, projH = 0, projRows = 0, avgL = 0, horizon = 0, plan = 0, planHas = false, alerts = 0, alertsMain = 0, alertsHigh = 0, risk = 0, riskHigh = 0, none = 0, lockedRows = 0, lockedCells = 0, active = 0;
     rows.forEach((r) => {
-      const a = r._a, e = r._e, fc = state.fc[r.id];
-      next += toL(r, fc[0]); avgL += e.avgL; horizon += e.fcL; plan += toL(r, e.planSum); if (r.hasPlan) planHas = true;
+      const a = r._a, e = r._e, fc = e.fin;
+      next += toL(r, fc[0]); projH += e.projL; if (e.projSum) projRows++; avgL += e.avgL; horizon += e.fcL; plan += toL(r, e.planSum); if (r.hasPlan) planHas = true;
       if (e.alerts.length) alerts++;
       if (e.alerts.some((x) => x.sev !== 'low')) alertsMain++;
       if (e.alerts.some((x) => x.sev === 'high')) alertsHigh++;
@@ -817,6 +927,7 @@
       kpi(`Forecast ${mLabel(M.fcMonths[0])}`, fmt(next) + ' ' + uL, `<span class="${pctClass(next / avgL - 1)}">${fmtPct(avgL ? next / avgL - 1 : null)}</span> vs promedio ${S.window} meses`),
       kpi(`Forecast ${H} meses`, fmt(horizon) + ' ' + uL, planHas ? `<span class="${pctClass(horizon / plan - 1)}">${fmtPct(plan ? horizon / plan - 1 : null)}</span> vs plan anterior (${fmt(plan)})` : 'sin plan anterior en el archivo', 'k-sky'),
       kpi(`Promedio ${S.window} meses`, fmt(avgL) + ' ' + uL + '/mes', `Último real ${mLabel(M.lastActual)}: ${fmt(sum(rows.map((r) => toL(r, r.hist.at(-1) || 0))))} ${uL}`, 'k-purple'),
+      kpi(`Proyectos VULOPPS ≥${S.projThreshold}%`, (projH >= 0 ? '+' : '') + fmt(projH) + ' ' + uL, `${nf0.format(projRows)} productos con proyecto · ${horizon ? nf0.format((projH / horizon) * 100) : 0}% del forecast`, 'k-violet'),
       kpi('Forecast accuracy', acc.value == null ? '–' : nf0.format(acc.value * 100) + '%', acc.label, 'k-sky'),
       kpi('Alertas a revisar', nf0.format(alertsMain), `${nf0.format(alertsHigh)} de severidad alta · ${nf0.format(alerts - alertsMain)} solo informativas`, 'k-fuchsia'),
       kpi('Riesgo de quiebre', nf0.format(risk), `${nf0.format(riskHigh)} con cartera > forecast`, 'k-violet'),
@@ -830,22 +941,26 @@
     const labels = [...hm, ...M.fcMonths].map(mLabel);
     const real = hm.map((_, j) => sum(rows.map((r) => toL(r, r.hist[hOff + j] || 0))));
     const fcT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, state.fc[r.id][i]))));
+    const projT = M.fcMonths.map((_, i) => sum(rows.map((r) => (state.projRow[r.id] ? toL(r, r._e.fin[i] - state.fc[r.id][i]) : 0))));
     const planT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.plan[i]))));
     const statT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.stat[i]))));
     const pad = hm.map(() => null);
     const avgLine = labels.map(() => avgL);
     const ds = [
       { type: 'bar', label: 'Real', data: [...real, ...M.fcMonths.map(() => null)], backgroundColor: BRAND.navy, borderRadius: 3, order: 3 },
-      { type: 'bar', label: 'Forecast', data: [...pad, ...fcT], backgroundColor: BRAND.sky, borderRadius: 3, order: 3 },
+      { type: 'bar', label: 'Forecast base', data: [...pad, ...fcT], backgroundColor: BRAND.sky, borderRadius: 3, order: 3, stack: 'f' },
     ];
+    if (projT.some((v) => v)) ds.push({ type: 'bar', label: `Proyectos ≥${S.projThreshold}%`, data: [...pad, ...projT], backgroundColor: BRAND.violet, borderRadius: 3, order: 3, stack: 'f' });
+    ds[0].stack = 'r';
     if (M.hasPlan) ds.push({ type: 'line', label: 'Plan anterior (DMR)', data: [...pad, ...planT], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 2, borderWidth: 2, order: 1 });
     if (M.hasStat) ds.push({ type: 'line', label: 'Estadístico', data: [...pad, ...statT], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 2, order: 1 });
     ds.push({ type: 'line', label: `Promedio ${S.window}m`, data: avgLine, borderColor: BRAND.fuchsia, borderWidth: 1.5, pointRadius: 0, order: 0 });
-    chart('chTrend', { data: { labels, datasets: ds }, options: baseOpts({ tooltipUnit: uL }) });
+    const trendOpts = baseOpts({ tooltipUnit: uL }); trendOpts.scales.x.stacked = true; trendOpts.scales.y.stacked = false;
+    chart('chTrend', { data: { labels, datasets: ds }, options: trendOpts });
 
     // Por cliente: promedio histórico vs forecast promedio 3 meses
     const byCli = groupBy(rows, (r) => r.client);
-    const cli = [...byCli.entries()].map(([k, rs]) => ({ k, avg: sum(rs.map((r) => r._e.avgL)), fc: sum(rs.map((r) => toL(r, sum(state.fc[r.id].slice(0, 3))) / 3)) }))
+    const cli = [...byCli.entries()].map(([k, rs]) => ({ k, avg: sum(rs.map((r) => r._e.avgL)), fc: sum(rs.map((r) => toL(r, sum(r._e.fin.slice(0, 3))) / 3)) }))
       .sort((a, b) => b.fc + b.avg - a.fc - a.avg).slice(0, 12);
     chart('chClients', {
       type: 'bar',
@@ -949,7 +1064,8 @@
         render: (r, t) => {
           const v = r.hist[i];
           if (t !== 'display') return v || 0;
-          const cls = v == null ? 'v-zero' : r._a.spikes.includes(k) ? 'v-spike' : v === 0 ? 'v-zero' : '';
+          const ex = state.excl[r.id] && state.excl[r.id].includes(k);
+          const cls = ex ? 'v-excl' : v == null ? 'v-zero' : r._a.spikes.includes(k) ? 'v-spike' : v === 0 ? 'v-zero' : '';
           return `<span class="${cls}">${v == null ? '·' : fmt(v)}</span>`;
         },
       });
@@ -970,11 +1086,14 @@
           if (t !== 'display') return v;
           const man = state.manual[r.id][i];
           const tip = `Sugerido: ${fmt(r._a.sug[i])}` + (r.hasPlan ? ` · Plan anterior: ${fmt(r.plan[i])}` : '') + (r.hasStat ? ` · Estadístico: ${fmt(r.stat[i])}` : '') + (r.cart[i] ? ` · Cartera: ${fmt(r.cart[i])}` : '') + (man ? ' · 🔒 bloqueado' : '');
-          return `<input class="fc-in ${cellClassFc(r, v)}${man ? ' manual' : ''}" data-id="${esc(r.id)}" data-m="${i}" value="${fmt(v)}" title="${esc(tip)}" inputmode="decimal">`;
+          const pj = state.projRow[r.id] && state.projRow[r.id][i];
+          const pjTag = pj ? `<span class="pj ${pj < 0 ? 'neg' : ''}" title="Proyectos VULOPPS incluidos en este mes. Forecast final = ${fmt(Math.max(0, v + pj))}">${pj > 0 ? '+' : ''}${fmt(pj)}</span>` : '';
+          return `<input class="fc-in ${cellClassFc(r, v)}${man ? ' manual' : ''}" data-id="${esc(r.id)}" data-m="${i}" value="${fmt(v)}" title="${esc(tip + ' · Base (sin proyectos)')}" inputmode="decimal">${pjTag}`;
         },
       });
     });
-    cols.push({ title: 'Total', data: null, className: 'num sep', orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? `<b>${fmt(r._e.fcSum)}</b>` : r._e.fcSum), _calc: true });
+    if (state.projects.length) cols.push({ title: 'Proy.', data: null, className: 'num sep', orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? (r._e.projSum ? `<span class="pj ${r._e.projSum < 0 ? 'neg' : ''}">${r._e.projSum > 0 ? '+' : ''}${fmt(r._e.projSum)}</span>` : '') : r._e.projSum), _calc: true });
+    cols.push({ title: state.projects.length ? 'Total final' : 'Total', data: null, className: 'num' + (state.projects.length ? '' : ' sep'), orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? `<b>${fmt(r._e.fcSum)}</b>` : r._e.fcSum), _calc: true });
     if (M.hasPac) cols.push({ title: 'Total L', data: null, className: 'num', orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? fmt(r._e.fcL) : r._e.fcL), _calc: true });
     cols.push({ title: 'Var. vs prom', data: null, className: 'num', orderSequence: ['desc', 'asc'], render: (r, t) => {
       const d = r._e.dev; if (t !== 'display') return isFinite(d) ? d : 999;
@@ -998,7 +1117,7 @@
       const totalLIdx = gridCols.findIndex((c) => c.title === 'Total L');
       grid = $('#tblGrid').DataTable({
         data: rows, columns: gridCols, deferRender: true, pageLength: 50, lengthMenu: [25, 50, 100, 250, 500],
-        order: [[1, 'asc'], [totalLIdx > 0 ? totalLIdx : gridCols.findIndex((c) => c.title === 'Total'), 'desc']],
+        order: [[2, 'asc'], [totalLIdx > 0 ? totalLIdx : gridCols.findIndex((c) => /^Total/.test(c.title)), 'desc']],
         rowId: (r) => 'row-' + r.id, autoWidth: false,
         language: dtLang(),
         dom: 'rtip<"dt-bottom"l>',
@@ -1071,14 +1190,18 @@
       const v = state.fc[r.id][i]; if (t !== 'display') return v;
       return `<input class="fc-in ${cellClassFc(r, v)}${state.manual[r.id][i] ? ' manual' : ''}" data-id="${esc(r.id)}" data-m="${i}" value="${fmt(v)}" inputmode="decimal">`;
     } });
+    if (state.projects.length) {
+      cols.push({ title: 'Proyectos', data: null, className: 'num', _calc: true, render: (r, t) => { const v = state.projRow[r.id] ? state.projRow[r.id][i] : 0; return t === 'display' ? (v ? `<span class="pj ${v < 0 ? 'neg' : ''}">${v > 0 ? '+' : ''}${fmt(v)}</span>` : '') : v; } });
+      cols.push({ title: 'Final', data: null, className: 'num', _calc: true, render: (r, t) => (t === 'display' ? `<b>${fmt(r._e.fin[i])}</b>` : r._e.fin[i]) });
+    }
     cols.push({ title: 'Var. vs prom', data: null, className: 'num', _calc: true, render: (r, t) => { const d = r._a.avgN ? state.fc[r.id][i] / r._a.avgN - 1 : null; return t === 'display' ? `<span class="${pctClass(d)}">${fmtPct(d)}</span>` : d ?? -999; } });
-    if (M.hasPlan) cols.push({ title: 'Var. vs plan', data: null, className: 'num', _calc: true, render: (r, t) => { const d = r.plan[i] ? state.fc[r.id][i] / r.plan[i] - 1 : null; return t === 'display' ? `<span class="${pctClass(d)}">${fmtPct(d)}</span>` : d ?? -999; } });
+    if (M.hasPlan) cols.push({ title: 'Var. vs plan', data: null, className: 'num', _calc: true, render: (r, t) => { const d = r.plan[i] ? r._e.fin[i] / r.plan[i] - 1 : null; return t === 'display' ? `<span class="${pctClass(d)}">${fmtPct(d)}</span>` : d ?? -999; } });
     if (monthTbl) { monthTbl.destroy(); $('#tblMonth').empty(); }
     monthTbl = $('#tblMonth').DataTable({ data: rows, columns: cols, deferRender: true, pageLength: 50, order: [[cols.findIndex((c) => c._fc), 'desc']], rowId: (r) => 'mrow-' + r.id, language: dtLang(), dom: 'rtip<"dt-bottom"l>', autoWidth: false });
     monthTbl._cols = cols;
 
     // KPIs del mes
-    const fcT = sum(rows.map((r) => toL(r, state.fc[r.id][i])));
+    const fcT = sum(rows.map((r) => toL(r, r._e.fin[i])));
     const avgT = sum(rows.map((r) => r._e.avgL));
     const planT = sum(rows.map((r) => toL(r, r.plan[i])));
     const lyT = ly >= 0 ? sum(rows.map((r) => toL(r, r.hist[ly] || 0))) : null;
@@ -1108,12 +1231,13 @@
       o.realL = sum(rs.map((r) => toL(r, sum(r.hist.slice(-state.settings.window)))));
       o.avgL = sum(rs.map((r) => r._e.avgL));
       o.avgU = sum(rs.map((r) => r._a.avgN));
-      o.fc3L = sum(rs.map((r) => toL(r, sum(state.fc[r.id].slice(0, 3))))) / 3;
+      o.fc3L = sum(rs.map((r) => toL(r, sum(r._e.fin.slice(0, 3))))) / 3;
+      o.projL = sum(rs.map((r) => r._e.projL));
       o.fcL = sum(rs.map((r) => r._e.fcL));
       o.fcU = sum(rs.map((r) => r._e.fcSum));
       o.planL = sum(rs.map((r) => toL(r, r._e.planSum)));
-      o.monthsL = M.fcMonths.map((_, i) => sum(rs.map((r) => toL(r, state.fc[r.id][i]))));
-      o.monthsU = M.fcMonths.map((_, i) => sum(rs.map((r) => state.fc[r.id][i])));
+      o.monthsL = M.fcMonths.map((_, i) => sum(rs.map((r) => toL(r, r._e.fin[i]))));
+      o.monthsU = M.fcMonths.map((_, i) => sum(rs.map((r) => r._e.fin[i])));
       o.var = o.avgL ? o.fc3L / o.avgL - 1 : null;
       o.varPlan = o.planL ? o.fcL / o.planL - 1 : null;
       o.alerts = rs.filter((r) => r._e.alerts.length).length;
@@ -1134,6 +1258,7 @@
       numCol('Var. vs prom', (o) => o.var, { pct: true }),
       numCol(`FC ${M.fcMonths.length}m (L)`, (o) => o.fcL, { cls: 'sep' }),
     ];
+    if (state.projects.length) cols.push(numCol('de los cuales proyectos (L)', (o) => o.projL));
     if (M.hasPlan) cols.push(numCol('Plan anterior (L)', (o) => o.planL), numCol('Var. vs plan', (o) => o.varPlan, { pct: true }));
     cols.push(numCol('Filas con alertas', (o) => o.alerts));
     if (cliTbl) { cliTbl.destroy(); $('#tblClients').empty(); }
@@ -1191,13 +1316,23 @@
     const hm = M.histMonths.slice(-18), off = M.histMonths.length - hm.length;
     const labels = [...hm, ...M.fcMonths].map(mLabel), pad = hm.map(() => null);
     const ds = [
-      { type: 'bar', label: 'Real', data: [...hm.map((_, j) => r.hist[off + j]), ...M.fcMonths.map(() => null)], backgroundColor: hm.map((k) => (a.spikes.includes(k) ? BRAND.violet : BRAND.navy)), borderRadius: 3 },
-      { type: 'bar', label: 'Forecast', data: [...pad, ...state.fc[id]], backgroundColor: BRAND.sky, borderRadius: 3 },
+      { type: 'bar', label: 'Real', data: [...hm.map((_, j) => r.hist[off + j]), ...M.fcMonths.map(() => null)], backgroundColor: hm.map((k) => ((state.excl[id] || []).includes(k) ? BRAND.grayL : a.spikes.includes(k) ? BRAND.violet : BRAND.navy)), borderRadius: 3, stack: 'r' },
+      { type: 'bar', label: 'Forecast base', data: [...pad, ...state.fc[id]], backgroundColor: BRAND.sky, borderRadius: 3, stack: 'f' },
+      ...(state.projRow[id] ? [{ type: 'bar', label: 'Proyectos', data: [...pad, ...state.projRow[id]], backgroundColor: BRAND.violet, borderRadius: 3, stack: 'f' }] : []),
       { type: 'line', label: 'Sugerido', data: [...pad, ...a.sug], borderColor: BRAND.fuchsia, borderDash: [3, 3], pointRadius: 0, borderWidth: 1.5 },
     ];
     if (r.hasPlan) ds.push({ type: 'line', label: 'Plan anterior', data: [...pad, ...r.plan], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 2, borderWidth: 2 });
     if (r.hasStat) ds.push({ type: 'line', label: 'Estadístico', data: [...pad, ...r.stat], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 1.5 });
-    chart('chRow', { data: { labels, datasets: ds }, options: baseOpts({ tooltipUnit: M.unit }) });
+    const rowOpts = baseOpts({ tooltipUnit: M.unit }); rowOpts.scales.x.stacked = true;
+    chart('chRow', { data: { labels, datasets: ds }, options: rowOpts });
+    // Limpieza de historia: chips de los últimos 12 meses; los marcados no cuentan para la estadística
+    const ex = state.excl[id] || [];
+    $id('dwClean').innerHTML = M.histMonths.slice(-12).map((k) => {
+      const v = r.hist[M.histMonths.indexOf(k)];
+      return `<button class="chip${ex.includes(k) ? ' on' : ''}${a.spikes.includes(k) ? ' sug' : ''}" data-excl="${k}" title="${ex.includes(k) ? 'Excluido como proyecto: clic para volver a contarlo' : 'Clic para marcar como mes de proyecto (no cuenta para la estadística)'}">${mLabel(k)}<b>${v == null ? '·' : fmt(v)}</b></button>`;
+    }).join('');
+    const myProj = state.projects.filter((p) => p._row === id);
+    $id('dwProj').innerHTML = myProj.length ? myProj.map((p) => `<div class="dw-alert" style="border-left-color:${p.type === 'VUL' ? BRAND.fuchsia : BRAND.violet}"><b>${p.type === 'VUL' ? 'Vulnerabilidad' : 'Oportunidad'} · ${esc(p.name)}</b> · ${p.prob}% · ${fmt(sum(Object.values(p.liters)))} L ${p._incl ? '' : `<span class="muted">(no incluido: &lt; ${state.settings.projThreshold}%)</span>`}</div>`).join('') : '<p class="muted small">Sin proyectos para este producto.</p>';
     const m = (l, v) => `<div class="dw-metric"><span>${l}</span><b>${v}</b></div>`;
     $id('dwMetrics').innerHTML = [
       m(`Promedio ${S.window}m`, fmt1(a.avgN) + ' ' + M.unit),
@@ -1298,7 +1433,7 @@
     const M = state.meta;
     if (modal.mode === 'row') {
       const r = state.byId.get(modal.rowId);
-      modal.rows = [r]; modal.unit = M.unit; modal.hist = r.hist.slice(); modal.plan = r.plan.slice();
+      modal.rows = [r]; modal.unit = M.unit; modal.hist = cleanHist(r).slice(); modal.plan = r.plan.slice();
       $id('fmTitle').textContent = 'Ingresar forecast · ' + r.desc;
       $id('fmSub').textContent = `${r.client} · SKU ${r.sku} · ${r.group} · valores en ${M.unit === 'pz' ? 'piezas' : M.unit}` + (r.pac ? ` (PAC ${fmt1(r.pac)} L)` : '');
     } else {
@@ -1309,7 +1444,9 @@
       $id('fmGroup').value = modal.group;
       modal.rows = state.rows.filter((r) => r.client === modal.client && (!modal.group || r.group === modal.group));
       modal.unit = M.unit === 'pz' ? 'L' : M.unit;
-      modal.hist = M.histMonths.map((_, i) => { let s = 0, any = false; modal.rows.forEach((r) => { if (r.hist[i] != null) { any = true; s += toL(r, r.hist[i]); } }); return any ? s : null; });
+      // curva agregada con la historia limpia (sin meses marcados como proyecto)
+      const ch = new Map(modal.rows.map((r) => [r.id, cleanHist(r)]));
+      modal.hist = M.histMonths.map((_, i) => { let s = 0, any = false; modal.rows.forEach((r) => { const v = ch.get(r.id)[i]; if (v != null) { any = true; s += toL(r, v); } }); return any ? s : null; });
       modal.plan = M.fcMonths.map((_, i) => sum(modal.rows.map((r) => toL(r, r.plan[i]))));
       $id('fmTitle').textContent = 'Previsión por cliente · ' + modal.client.replace(/^M&P ARG /, '');
       $id('fmSub').textContent = `${modal.rows.length} productos${modal.group ? ' del grupo ' + modal.group : ''} · curva agregada en litros, repartida por producto según su mix`;
@@ -1358,6 +1495,8 @@
       { type: 'line', label: 'Mismo mes año anterior', data: [...pad, ...lyLine], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 1.5, order: 2 },
     ];
     if (M.hasPlan) ds.push({ type: 'line', label: 'Plan anterior', data: [...pad, ...modal.plan], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5, order: 2 });
+    const pjm = M.fcMonths.map((_, i) => sum(modal.rows.map((r) => (state.projRow[r.id] ? (modal.mode === 'row' ? state.projRow[r.id][i] : toL(r, state.projRow[r.id][i])) : 0))));
+    if (pjm.some((v) => v)) ds.push({ type: 'line', label: 'Propuesto + proyectos', data: [...pad, ...modal.values.map((v, i) => Math.max(0, v + pjm[i]))], borderColor: BRAND.violet, borderDash: [4, 3], pointRadius: 2, borderWidth: 2, order: 1 });
     chart('chModal', { data: { labels, datasets: ds }, options: baseOpts({ tooltipUnit: modal.unit }) });
   }
 
@@ -1370,7 +1509,7 @@
     const N = modal.window, respect = $id('fmRespect').checked, H = state.meta.fcMonths.length;
     const conv = state.meta.unit === 'pz';
     const rows = modal.rows.filter((r) => !conv || r.pac > 0);
-    const w = new Map(rows.map((r) => [r.id, toL(r, sum(r.hist.filter((v) => v != null).slice(-N)))]));
+    const w = new Map(rows.map((r) => [r.id, toL(r, sum(cleanHist(r).filter((v) => v != null).slice(-N)))]));
     let base = rows.filter((r) => w.get(r.id) > 0);
     if (!base.length) { base = rows; base.forEach((r) => w.set(r.id, 1)); }
     const out = new Map(base.map((r) => [r.id, new Array(H).fill(0)]));
@@ -1464,6 +1603,134 @@
     $id('btnClientWizard').addEventListener('click', () => openForecastModal('client'));
   }
 
+  /* ---------- 7.9 Proyectos (VULOPPS) ----------
+     Registro de oportunidades (OPP, suman) y vulnerabilidades (VUL, restan) en litros.
+     Se importan de la hoja VULOPPS y se pueden cargar/editar a mano con un pop-up.
+     Solo entran al forecast final los que tienen probabilidad ≥ umbral (70% por defecto). */
+  let projTbl = null, projEditing = null;
+
+  function renderProjects() {
+    const S = state.settings, M = state.meta;
+    $id('pjThreshold').value = S.projThreshold;
+    const P = state.projects, inc = P.filter((p) => p._incl);
+    const tot = (arr, t) => sum(arr.filter((p) => !t || p.type === t).map((p) => sum(Object.values(p.liters))));
+    $id('pjKpis').innerHTML = [
+      kpi('Incluidos en el forecast', nf0.format(inc.length), `de ${nf0.format(P.length)} proyectos · probabilidad ≥ ${S.projThreshold}%`),
+      kpi('Oportunidades incluidas', '+' + fmt(tot(inc, 'OPP')) + ' L', `${inc.filter((p) => p.type === 'OPP').length} OPP`, 'k-violet'),
+      kpi('Vulnerabilidades incluidas', '−' + fmt(tot(inc, 'VUL')) + ' L', `${inc.filter((p) => p.type === 'VUL').length} VUL`, 'k-fuchsia'),
+      kpi('Fuera por probabilidad', nf0.format(P.length - inc.length), fmt(tot(P.filter((p) => !p._incl))) + ' L no considerados', 'k-gray'),
+    ].join('');
+    const span = (p) => { const ks = Object.keys(p.liters).filter((k) => p.liters[k]).sort(); return ks.length ? mLabel(ks[0]) + (ks.length > 1 ? ' → ' + mLabel(ks.at(-1)) : '') : '–'; };
+    const cols = [
+      { title: 'Incluido', data: null, render: (p, t) => (t === 'display' ? (p._incl ? '<span class="badge b-up">✓ sí</span>' : `<span class="badge b-none">no (&lt;${S.projThreshold}%)</span>`) : (p._incl ? 1 : 0)) },
+      { title: 'Tipo', data: 'type', render: (v, t) => (t === 'display' ? (v === 'VUL' ? '<span class="badge b-down">VUL</span>' : '<span class="badge b-spike">OPP</span>') : v) },
+      { title: 'Proyecto', data: 'name', render: (v, t, p) => (t === 'display' ? `<a class="lnk" data-pjedit="${esc(p.id)}">${esc(v)}</a>` : v) },
+      { title: 'Cliente', data: 'client', render: (v) => esc(String(v).replace(/^M&P ARG /, '')) },
+      { title: 'SKU', data: 'sku' },
+      { title: 'Descripción', data: 'desc', className: 'desc' },
+      { title: 'Prob.', data: 'prob', className: 'num', render: (v, t) => (t === 'display' ? v + '%' : v) },
+      { title: 'Total L', data: null, className: 'num', render: (p, t) => { const v = sum(Object.values(p.liters)); return t === 'display' ? fmt(v) : v; } },
+      { title: 'Meses', data: null, render: (p) => span(p) },
+      { title: 'Origen', data: 'source', render: (v, t, p) => (t === 'display' ? (v === 'manual' ? 'Carga manual' : 'VULOPPS') + (p._noPac ? ' <span class="badge b-med" title="El producto no tiene PAC: no se puede convertir a piezas">sin PAC</span>' : '') : v) },
+      { title: '', data: null, orderable: false, render: (p) => `<button class="btn btn-ghost btn-xs" data-pjedit="${esc(p.id)}">Editar</button>` },
+    ];
+    if (projTbl) { projTbl.destroy(); $('#tblProjects').empty(); }
+    projTbl = $('#tblProjects').DataTable({ data: P, columns: cols, deferRender: true, pageLength: 50, order: [[0, 'desc'], [7, 'desc']], language: { ...dtLang(), emptyTable: 'No hay proyectos: la hoja VULOPPS del archivo está vacía. Cargalos con “+ Nuevo proyecto”.' }, dom: 'rtip<"dt-bottom"l>' });
+    $id('pjNote').textContent = M ? `Horizonte ${mLabel(M.fcMonths[0])} a ${mLabel(M.fcMonths.at(-1))}. Los litros se convierten a piezas con el PAC de cada producto.` : '';
+  }
+
+  /** Pop-up de alta/edición de un proyecto. */
+  function openProjectModal(id) {
+    const M = state.meta; if (!M) return;
+    const p = id ? state.projects.find((x) => x.id === id) : null;
+    projEditing = p ? p.id : null;
+    $id('pmTitle').textContent = p ? 'Editar proyecto' : 'Nuevo proyecto';
+    $id('pmDelete').hidden = !p;
+    $id('pmType').value = p ? p.type : 'OPP';
+    $id('pmName').value = p ? p.name : '';
+    $id('pmClient').innerHTML = [...new Set(state.rows.map((r) => r.client))].sort().map((c) => `<option>${esc(c)}</option>`).join('');
+    $id('pmClient').value = p ? p.client : state.filters.client || $id('pmClient').options[0].value;
+    // catálogo de productos (SKU — descripción) para el buscador
+    const seen = new Set();
+    $id('pmSkuList').innerHTML = state.rows.filter((r) => !seen.has(r.sku) && seen.add(r.sku)).map((r) => `<option value="${esc(r.sku + ' — ' + r.desc)}">`).join('');
+    $id('pmSku').value = p ? p.sku + ' — ' + p.desc : '';
+    $id('pmProb').value = p ? p.prob : 70;
+    $id('pmTotal').value = ''; $id('pmFrom').innerHTML = $id('pmTo').innerHTML = M.fcMonths.map((k, i) => `<option value="${i}">${mLabel(k)}</option>`).join('');
+    $id('pmFrom').value = 0; $id('pmTo').value = Math.min(2, M.fcMonths.length - 1);
+    $id('pmMonths').innerHTML = M.fcMonths.map((k) => `<label class="pm-m">${mLabel(k)}<input data-pm="${k}" inputmode="decimal" value="${p && p.liters[k] ? fmt(p.liters[k]) : ''}"></label>`).join('');
+    updatePmTotal();
+    $id('projModal').hidden = false; document.body.classList.add('modal-open');
+    setTimeout(() => $id('pmName').focus(), 50);
+  }
+  function closeProjectModal() { $id('projModal').hidden = true; document.body.classList.remove('modal-open'); }
+  function pmLiters() { const o = {}; document.querySelectorAll('#pmMonths [data-pm]').forEach((i) => { const v = parseNum(i.value); if (v > 0) o[i.dataset.pm] = v; }); return o; }
+  function updatePmTotal() {
+    const L = sum(Object.values(pmLiters())), prob = +$id('pmProb').value || 0;
+    $id('pmSum').innerHTML = `Total: <b>${fmt(L)} L</b> · ${prob >= state.settings.projThreshold ? `<span class="pos">entra al forecast</span> (≥ ${state.settings.projThreshold}%)` : `<span class="neg">no entra al forecast</span> (&lt; ${state.settings.projThreshold}%)`}`;
+  }
+  function saveProject() {
+    const name = $id('pmName').value.trim(), client = $id('pmClient').value;
+    const skuTxt = $id('pmSku').value.trim(), sku = skuTxt.split('—')[0].trim();
+    const known = state.rows.find((r) => r.sku === sku);
+    const desc = skuTxt.includes('—') ? skuTxt.split('—').slice(1).join('—').trim() : known ? known.desc : '';
+    const prob = Math.max(0, Math.min(100, Math.round(parseNum($id('pmProb').value) || 0)));
+    const liters = pmLiters();
+    if (!name) { toast('Poné un nombre al proyecto', true); return; }
+    if (!sku) { toast('Elegí el producto (SKU)', true); return; }
+    if (!Object.keys(liters).length) { toast('Cargá los litros de al menos un mes', true); return; }
+    const data = { type: $id('pmType').value, name, client, sku, desc, prob, liters };
+    if (projEditing) Object.assign(state.projects.find((x) => x.id === projEditing), data);
+    else state.projects.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), source: 'manual', ...data });
+    closeProjectModal(); refreshProjects(); rebuildGridIfOpen(); renderView();
+    toast(`Proyecto guardado${prob >= state.settings.projThreshold ? ' e incluido en el forecast' : ' (no entra al forecast: probabilidad < ' + state.settings.projThreshold + '%)'}`);
+  }
+  function deleteProject() {
+    if (!projEditing || !confirm('¿Eliminar este proyecto?')) return;
+    state.projects = state.projects.filter((x) => x.id !== projEditing);
+    closeProjectModal(); refreshProjects(); rebuildGridIfOpen(); renderView();
+    toast('Proyecto eliminado');
+  }
+  function rebuildGridIfOpen() { if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; } state.dirty.add('grid'); }
+
+  /** Marca/desmarca un mes de historia como proyecto (limpieza) y recalcula la fila. */
+  function toggleExcl(id, k) {
+    const r = state.byId.get(id); const before = r._a.avgN;
+    const ex = state.excl[id] || (state.excl[id] = []);
+    const j = ex.indexOf(k); if (j >= 0) ex.splice(j, 1); else ex.push(k);
+    if (!ex.length) delete state.excl[id];
+    r._a = analyze(r); evalRow(r); touch(); state.dirty.add('grid');
+    openDrawer(id);
+    toast(`Promedio ${state.settings.window}m: ${fmt1(before)} → ${fmt1(r._a.avgN)}. Usá “Aplicar sugerido” para actualizar el forecast base.`);
+  }
+
+  function bindProjectEvents() {
+    $id('btnNewProject').addEventListener('click', () => openProjectModal(null));
+    $id('pmClose').addEventListener('click', closeProjectModal);
+    $id('pmCancel').addEventListener('click', closeProjectModal);
+    $id('projModal').addEventListener('click', (e) => { if (e.target.id === 'projModal') closeProjectModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$id('projModal').hidden) closeProjectModal(); });
+    $id('pmSave').addEventListener('click', saveProject);
+    $id('pmDelete').addEventListener('click', deleteProject);
+    $id('pmMonths').addEventListener('input', updatePmTotal);
+    $id('pmProb').addEventListener('input', updatePmTotal);
+    $id('pmSpread').addEventListener('click', () => {
+      const T = parseNum($id('pmTotal').value); let a = +$id('pmFrom').value, b = +$id('pmTo').value; if (a > b) [a, b] = [b, a];
+      if (!(T > 0)) { toast('Ingresá el total en litros a repartir', true); return; }
+      const parts = cumRound(Array.from({ length: b - a + 1 }, () => T / (b - a + 1)));
+      document.querySelectorAll('#pmMonths [data-pm]').forEach((inp, i) => { inp.value = i >= a && i <= b ? fmt(parts[i - a]) : ''; });
+      updatePmTotal();
+    });
+    $id('pjThreshold').addEventListener('change', (e) => {
+      state.settings.projThreshold = Math.max(0, Math.min(100, +e.target.value || 0));
+      refreshProjects(); rebuildGridIfOpen(); renderView();
+      toast(`Umbral de proyectos: ≥ ${state.settings.projThreshold}%`);
+    });
+    document.addEventListener('click', (e) => {
+      const pe = e.target.closest('[data-pjedit]'); if (pe) { openProjectModal(pe.dataset.pjedit); return; }
+      const ex = e.target.closest('[data-excl]'); if (ex && drawerId) toggleExcl(drawerId, ex.dataset.excl);
+    });
+  }
+
   /* ---------- 7.7 Configuración ---------- */
   function renderSettings() {
     const f = $id('settingsForm');
@@ -1504,10 +1771,16 @@
 
     // 1) Forecast Final
     const h1 = ['Key', 'Cliente', 'KAM', 'SKU', 'ProductId', 'Code shape', 'Descripción', 'Grupo', 'PC', 'PAC (L)', 'Clase', `Prom ${S.window}m`, 'Tendencia', ...ml, `Total (${U})`, 'Total (L)', 'Var. vs prom', 'Var. vs plan', 'Celdas bloqueadas', 'Alertas'];
-    const d1 = rows.map((r) => [r.key, r.client, r.kam, isNaN(+r.sku) ? r.sku : +r.sku, r.productId, r.shape || '', r.desc, r.group, r.pc, r.pac || null, r.cls, r._a.avgN, r._a.trendPct, ...state.fc[r.id], r._e.fcSum, r._e.fcL, isFinite(r._e.dev) ? r._e.dev : null, r._e.devPlan, r._e.locked, r._e.alerts.map((a) => ALERT_TYPES[a.t]).join('; ')]);
+    const d1 = rows.map((r) => [r.key, r.client, r.kam, isNaN(+r.sku) ? r.sku : +r.sku, r.productId, r.shape || '', r.desc, r.group, r.pc, r.pac || null, r.cls, r._a.avgN, r._a.trendPct, ...r._e.fin, r._e.fcSum, r._e.fcL, isFinite(r._e.dev) ? r._e.dev : null, r._e.devPlan, r._e.locked, r._e.alerts.map((a) => ALERT_TYPES[a.t]).join('; ')]);
     const f1 = [null, null, null, null, null, null, null, null, null, F_DEC, null, F_DEC, F_PCT, ...ml.map(() => F_INT), F_INT, F_INT, F_PCT, F_PCT, F_INT, null];
     const w1 = [30, 24, 10, 10, 14, 13, 44, 20, 9, 8, 7, 10, 10, ...ml.map(() => 9), 11, 11, 11, 11, 10, 40];
-    XLSX.utils.book_append_sheet(wb, buildSheet(`Forecast final (${U})`, h1, d1, f1, w1, stamp), 'Forecast Final');
+    XLSX.utils.book_append_sheet(wb, buildSheet(`Forecast final (${U}) = base estadística/corregida + proyectos VULOPPS ≥${S.projThreshold}%`, h1, d1, f1, w1, stamp), 'Forecast Final');
+    if (state.projects.length) {
+      // Base sin proyectos y capa de proyectos por separado
+      const hb = ['Key', 'Cliente', 'SKU', 'Descripción', ...ml.map((m) => 'Base ' + m), 'Total base', ...ml.map((m) => 'Proy. ' + m), 'Total proyectos'];
+      const db = rows.filter((r) => r._e.fcSum || r._e.projSum).map((r) => { const pj = state.projRow[r.id] || ml.map(() => 0); return [r.key, r.client, isNaN(+r.sku) ? r.sku : +r.sku, r.desc, ...state.fc[r.id], r._e.baseSum, ...pj, r._e.projSum]; });
+      XLSX.utils.book_append_sheet(wb, buildSheet(`Forecast base vs proyectos (${U})`, hb, db, [null, null, null, null, ...ml.map(() => F_INT), F_INT, ...ml.map(() => F_INT), F_INT], [30, 24, 10, 44], stamp), 'Base vs Proyectos');
+    }
 
     // 2) Resumen por Producto
     const sp = summarize(rows, (r) => r.sku, (o, rs) => { o.desc = rs[0].desc; o.group = rs[0].group; o.pac = rs[0].pac; o.clients = new Set(rs.map((r) => r.client)).size; })
@@ -1532,14 +1805,23 @@
     const d4 = al.map((a) => [SEV[a.sev][0], ALERT_TYPES[a.t], a.r.client, a.r.kam, isNaN(+a.r.sku) ? a.r.sku : +a.r.sku, a.r.desc, a.msg, a.r._a.avgN, a.r._e.fcSum]);
     XLSX.utils.book_append_sheet(wb, buildSheet('Alertas', h4, d4, [null, null, null, null, null, null, null, F_DEC, F_INT], [10, 28, 24, 10, 10, 44, 70, 12, 14], stamp), 'Alertas');
 
-    // 5) Parámetros
+    // 5) Proyectos con el formato de la hoja VULOPPS (para pegar en el archivo)
+    if (state.projects.length) {
+      const yms = M.fcMonths.map((k) => +k.replace('-', ''));
+      const hp = ['InvoicingCountry', 'VulOps', '%', 'VulOpsName', 'OMP GROUP', 'MRP', 'SKU', 'SKU Description', ...yms, 'Total YTG', 'Incluido en forecast', 'Origen'];
+      const dp = state.projects.map((p) => ['ARGENTINA', p.type, p.prob / 100, p.name, p.client, '', isNaN(+p.sku) ? p.sku : +p.sku, p.desc, ...M.fcMonths.map((k) => p.liters[k] || 0), sum(Object.values(p.liters)), p._incl ? 'Sí' : 'No (< ' + S.projThreshold + '%)', p.source]);
+      XLSX.utils.book_append_sheet(wb, buildSheet('Proyectos (formato VULOPPS, litros)', hp, dp, [null, null, F_PCT, null, null, null, null, null, ...yms.map(() => F_INT), F_INT, null, null], [14, 8, 7, 30, 24, 6, 10, 40], stamp), 'Proyectos');
+    }
+
+    // 6) Parámetros
     const methodName = { avg: 'Promedio últimos N meses', trend: 'Tendencia lineal', growth: `Promedio + ${S.growthPct}%`, seasonal: 'Promedio × índice estacional' }[S.method];
     const info = [
       ['Parámetro', 'Valor'],
       ['Fecha de generación', now.toLocaleString('es-AR')], ['Archivo origen', M.fileName],
       ['Hojas usadas', [M.sheets.forecast, M.sheets.actuals].filter(Boolean).join(' + ')],
       ['Unidad base', U], ['Último mes real', mLabel(M.lastActual)], ['Horizonte', ml[0] + ' a ' + ml.at(-1)],
-      ['Ventana de análisis', S.window + ' meses'], ['Método sugerido', methodName], ['Umbral de alerta', S.alertPct + '%'],
+      ['Ventana de análisis', S.window + ' meses'], ['Umbral de proyectos VULOPPS', '≥ ' + S.projThreshold + '% de probabilidad'],
+      ['Meses de historia excluidos (proyectos)', sum(Object.values(state.excl).map((a) => a.length))], ['Método sugerido', methodName], ['Umbral de alerta', S.alertPct + '%'],
       ['Combinaciones exportadas', rows.length], ['Celdas bloqueadas (manuales)', sum(rows.map((r) => r._e.locked))],
     ];
     const wsI = XLSX.utils.aoa_to_sheet(info); wsI['!cols'] = [{ wch: 30 }, { wch: 60 }];
@@ -1568,7 +1850,7 @@
       overrides[r.id] = {};
       man.forEach((v, i) => { if (v) overrides[r.id][state.meta.fcMonths[i]] = state.fc[r.id][i]; });
     });
-    download('forecast-config_' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ type: 'forecast-config', v: 1, exportedAt: new Date().toISOString(), sourceFile: state.meta && state.meta.fileName, settings: state.settings, overrides }, null, 1));
+    download('forecast-config_' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ type: 'forecast-config', v: 1, exportedAt: new Date().toISOString(), sourceFile: state.meta && state.meta.fileName, settings: state.settings, overrides, excl: state.excl, projects: state.projects.filter((p) => p.source === 'manual').map(({ _row, _incl, _noPac, ...pj }) => pj) }, null, 1));
     toast('Configuración exportada (' + Object.keys(overrides).length + ' filas con valores manuales)');
   }
   function importConfig(text) {
@@ -1585,6 +1867,8 @@
           if (i >= 0) { state.fc[id][i] = v; state.manual[id][i] = 1; n++; }
         });
       });
+      if (c.excl) Object.assign(state.excl, c.excl);
+      (c.projects || []).forEach((pj) => { if (!state.projects.some((x) => x.id === pj.id)) state.projects.push(pj); });
       analyzeAll(); touch(); refreshGrid(true);
     }
     toast(`Configuración importada: reglas + ${n} valores manuales` + (miss ? ` (${miss} filas no existen en este archivo)` : ''));
@@ -1594,7 +1878,7 @@
   function saveSnapshot() {
     const data = {};
     state.rows.forEach((r) => {
-      const o = {}; state.fc[r.id].forEach((v, i) => { if (v) o[state.meta.fcMonths[i]] = v; });
+      const o = {}; r._e.fin.forEach((v, i) => { if (v) o[state.meta.fcMonths[i]] = v; });
       if (Object.keys(o).length) data[r.id] = o;
     });
     const snaps = loadSnaps().filter((s) => s.lastActual !== state.meta.lastActual); // una foto por ciclo
@@ -1627,17 +1911,21 @@
     if (!/\.(xlsx|xlsb|xlsm|xls)$/i.test(file.name)) { toast('Formato no soportado: usá .xlsx o .xlsb', true); return; }
     try {
       const prev = state.meta && Object.values(state.manual).some((m) => m.some(Boolean)) ? { months: state.meta.fcMonths } : null;
-      const { meta, rows } = await parseFile(file);
+      const { meta, rows, projects } = await parseFile(file);
       if (!rows.length) throw new Error('El archivo no tiene filas de datos reconocibles.');
       const keep = prev && confirm('Hay valores editados a mano de la sesión anterior.\n¿Conservarlos en este archivo para los meses que coincidan?') ? prev : null;
       loading('Calculando análisis y forecast sugerido…'); await nextTick();
       state.meta = meta; state.rows = rows; state.selected.clear();
+      // proyectos: los de VULOPPS del archivo nuevo + los cargados a mano en la app
+      state.projects = [...projects, ...state.projects.filter((p) => p.source === 'manual')];
       indexRows();
       state.rows.forEach((r) => { r._a = analyze(r); }); // el sugerido se necesita antes de inicializar el forecast
       initForecast(keep);
+      buildProjLayer(); // puede crear filas nuevas para proyectos de productos sin historia
       afterDataReady();
       showView('dashboard');
-      toast(`Archivo cargado en ${(meta.parseMs / 1000).toFixed(1)} s: ${nf0.format(rows.length)} combinaciones cliente × producto`);
+      const nInc = state.projects.filter((p) => p._incl).length;
+      toast(`Archivo cargado en ${(meta.parseMs / 1000).toFixed(1)} s: ${nf0.format(rows.length)} combinaciones · VULOPPS: ${state.projects.length} proyectos (${nInc} ≥ ${state.settings.projThreshold}%)`);
     } catch (e) {
       console.error(e);
       toast('No se pudo leer el archivo: ' + e.message, true);
@@ -1723,6 +2011,17 @@
         param = parseNum($id('mParam').value);
         if (isNaN(param) || $id('mParam').value === '') { toast('Ingresá un valor', true); return; }
       }
+      if (action === 'cleanspikes' || action === 'restorehist') {
+        let n = 0;
+        rows.forEach((r) => {
+          if (action === 'restorehist') { if (state.excl[r.id]) { n += state.excl[r.id].length; delete state.excl[r.id]; } }
+          else if (r._a.spikes.length) { const ex = state.excl[r.id] || (state.excl[r.id] = []); r._a.spikes.forEach((k) => { if (!ex.includes(k)) { ex.push(k); n++; } }); }
+          r._a = analyze(r); evalRow(r);
+        });
+        touch(); refreshGrid();
+        toast(action === 'restorehist' ? `${n} meses vuelven a contar en la estadística` : `${n} meses marcados como proyecto. Los promedios se recalcularon: usá “Completar con sugerido” para actualizar el forecast base.`);
+        return;
+      }
       if (rows.length > 200 && !confirm(`La acción se aplicará a ${nf0.format(rows.length)} filas (meses ${mLabel(state.meta.fcMonths[from])} a ${mLabel(state.meta.fcMonths[to])}). ¿Continuar?`)) return;
       const n = massApply(rows, action, from, to, param, $id('mOnlyEmpty').checked);
       refreshGrid();
@@ -1780,6 +2079,7 @@
   function updateParamField() {
     const a = $id('mAction').value;
     $id('mParamWrap').hidden = !(a === 'pct' || a === 'value');
+    $id('mFrom').disabled = $id('mTo').disabled = $id('mOnlyEmpty').disabled = a === 'cleanspikes' || a === 'restorehist';
     $id('mParamLabel').textContent = a === 'pct' ? '% (ej. 10 o -15)' : 'Valor';
   }
   function updateScopeLabel() {
@@ -1791,6 +2091,7 @@
   function init() {
     bindEvents();
     bindModalEvents();
+    bindProjectEvents();
     updateParamField();
     document.querySelectorAll('.nav-item').forEach((b) => (b.disabled = b.dataset.view !== 'settings'));
     if (loadSession()) {
