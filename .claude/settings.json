@@ -32,6 +32,7 @@
     }
   },
   "enabledPlugins": {
-    "supabase@claude-plugins-official": true
+    "supabase@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
   }
 }
