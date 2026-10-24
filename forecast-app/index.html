@@ -14,17 +14,17 @@
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <img src="assets/logos/akzonobel-white.svg" alt="AkzoNobel">
+      <div class="wordmark">Forecast MP&amp;Y<small id="cycleLabel">Sin archivo cargado</small></div>
     </div>
     <nav class="nav">
-      <button class="nav-item active" data-view="dashboard"><span class="ico">◧</span>Dashboard</button>
-      <button class="nav-item" data-view="grid"><span class="ico">▦</span>Forecast</button>
-      <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Vista mensual</button>
-      <button class="nav-item" data-view="clients"><span class="ico">◉</span>Resumen por cliente</button>
-      <button class="nav-item" data-view="products"><span class="ico">◈</span>Resumen por producto</button>
+      <button class="nav-item active" data-view="dashboard"><span class="ico">◧</span>Resumen del mes</button>
+      <button class="nav-item" data-view="grid"><span class="ico">▦</span>Cargar forecast</button>
+      <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Mes por mes</button>
+      <button class="nav-item" data-view="clients"><span class="ico">◉</span>Clientes</button>
+      <button class="nav-item" data-view="products"><span class="ico">◈</span>Productos</button>
       <button class="nav-item" data-view="projects"><span class="ico">◆</span>Proyectos <span class="nav-badge nb-violet" id="navProjCount" hidden>0</span></button>
-      <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Alertas <span class="nav-badge" id="navAlertCount">0</span></button>
-      <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Configuración</button>
+      <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Para revisar <span class="nav-badge" id="navAlertCount">0</span></button>
+      <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Ajustes</button>
     </nav>
     <div class="sidebar-foot">
       <div class="file-info" id="fileInfo">Sin archivo cargado</div>
@@ -44,7 +44,6 @@
         <div class="subtitle" id="viewSubtitle">Forecast mensual de consumo</div>
       </div>
       <button class="btn btn-ghost filter-toggle" id="btnFilters" hidden>Filtros</button>
-      <img class="topbar-logo" src="assets/logos/international-blue.png" alt="International">
     </header>
 
     <!-- Barra de filtros global (aplica a todas las vistas) -->
@@ -81,7 +80,7 @@
     <section class="view active" id="view-empty">
       <div class="dropzone" id="dropzone">
         <div class="dz-icon">⇪</div>
-        <h2>Arrastrá el archivo de forecast acá</h2>
+        <h2>Arrastrá el archivo de forecast</h2>
         <p>Formatos .xlsx y .xlsb. Se detecta automáticamente la hoja <b>Actuals</b> y, si existe, la hoja <b>Forecast</b> (plan anterior DMR, estadístico, KAM, PAC y cartera).</p>
         <button class="btn btn-primary" id="btnLoad2">Elegir archivo</button>
         <p class="muted small">El archivo se procesa 100% en tu navegador: no se sube a ningún servidor.</p>
@@ -90,19 +89,31 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
-      <div class="kpis kpis-main" id="kpis"></div>
-      <div class="kpis-sec-row" id="kpisSec"></div>
-      <div class="grid-2">
-        <div class="card card-wide">
-          <div class="section-bar">Evolución mensual <span class="bar-note" id="trendUnitNote"></span></div>
-          <div class="chart-box tall"><canvas id="chTrend"></canvas></div>
+      <div class="hull">
+        <p class="hull-title" id="hullTitle"></p>
+        <div class="draft">
+          <div class="mark" id="hullMark"></div>
+          <p class="lede" id="hullLede"></p>
         </div>
+        <div class="hull-chart" id="hullChart" role="img"></div>
+        <div class="keel" id="keel"></div>
+      </div>
+      <div class="deckgrid">
+        <section>
+          <h2>Para revisar antes de enviar</h2>
+          <p class="sub" id="todoSub"></p>
+          <ul class="todo" id="todo"></ul>
+          <button class="btn btn-primary" id="btnAllCases">Ver todos los casos</button>
+        </section>
+        <section>
+          <h2>Clientes: próximos 3 meses</h2>
+          <p class="sub">Barra gris: promedio de los últimos meses. Línea: forecast. Clic para ver el cliente.</p>
+          <ul class="clist" id="cliList"></ul>
+        </section>
+      </div>
+      <div class="grid-3">
         <div class="card">
-          <div class="section-bar">Por cliente: promedio histórico vs forecast</div>
-          <div class="chart-box"><canvas id="chClients"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="section-bar">Mayores variaciones por grupo (forecast vs promedio)</div>
+          <div class="section-bar">Variación por grupo</div>
           <div class="chart-box"><canvas id="chGroups"></canvas></div>
         </div>
         <div class="card">
@@ -310,7 +321,7 @@
       <button class="btn btn-ghost" data-rowact="unlock">Desbloquear fila</button>
     </div>
     <div class="section-sub">Limpieza de historia</div>
-    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los sugeridos por el sistema aparecen con borde violeta.</p>
+    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los que el sistema detecta como pico aparecen con borde dorado.</p>
     <div class="chips" id="dwClean"></div>
     <div class="section-sub">Proyectos (VULOPPS)</div>
     <div id="dwProj"></div>

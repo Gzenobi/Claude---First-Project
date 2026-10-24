@@ -113,7 +113,8 @@ La detección es automática: busca la fila de encabezados por nombre de columna
 ```
 forecast-app/
 ├── index.html      Estructura: sidebar, topbar, filtros globales, 7 vistas, drawer de detalle, pop-up de previsión
-├── styles.css      Identidad AkzoNobel (navy #003A70), semáforos, layout responsive
+├── styles.css      Tema "Línea de flotación" (casco, mar, antiincrustante), layout responsive
+├── fonts/          Barlow y Barlow Condensed (OFL), locales para funcionar sin internet
 ├── app.js          Toda la lógica (un IIFE, sin dependencias de build)
 ├── vendor/         jQuery 3.7.1, DataTables 1.13.11, Chart.js 4.4.4, SheetJS 0.18.5 (locales)
 └── assets/logos/   AkzoNobel (blanco) e International (color)
