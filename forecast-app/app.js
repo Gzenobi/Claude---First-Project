@@ -1948,39 +1948,47 @@
     const nR = D.lastRow - D.firstRow + 1, nC = D.cols.length;
 
     // 1) Instrucciones
+    const keyOf = (r) => (r ? r.key || r.client + r.sku : '');
     const L = [
-      ['Cómo pasar el forecast al Excel original sin tocar fórmulas ni estructura'],
-      ['Generado: ' + now.toLocaleString('es-AR') + ' · Archivo base: ' + M.fileName],
+      ['Cómo pasar el forecast al archivo en la nube (SharePoint / OneDrive / Teams) sin tocar fórmulas ni estructura'],
+      ['Generado: ' + now.toLocaleString('es-AR') + ' · Copia cargada en la herramienta: ' + M.fileName],
       [],
-      ['IMPORTANTE: usá una copia del MISMO archivo que cargaste en la herramienta (mismas filas). Este archivo no reemplaza nada: solo trae valores donde hubo cambios.'],
+      ['IMPORTANTE: los cambios se pegan directamente en el archivo de la NUBE, abierto con Excel de escritorio. Este archivo no reemplaza nada: solo trae valores donde hubo cambios.'],
+      ['Pegá el mismo día en que descargaste la copia: si alguien agrega u ordena filas en el medio, el bloque queda desalineado (el PASO 1c lo detecta).'],
       [],
-      ['PASO 1 · Preparar el original'],
-      ['   a) Abrí la copia revisada del original.'],
-      [`   b) En la hoja ${D.sheet}, sacá los filtros (Datos → Borrar) para que se vean todas las filas.`],
-      [`   c) Verificá la alineación: ${D.sheet}!A${D.firstRow} debe decir "${first ? first.key || first.client + first.sku : ''}" y ${D.sheet}!A${D.lastRow} debe decir "${last ? last.key || last.client + last.sku : ''}".`],
+      ['PASO 1 · Abrir el archivo de la nube en Excel de escritorio'],
+      ['   a) Abrí el archivo online y tocá Editar → Abrir en la aplicación de escritorio. Arriba tiene que decir "Autoguardado: Activado".'],
+      [`   b) En la hoja ${D.sheet}, sacá los filtros (Datos → Borrar) para que se vean todas las filas. Anotá cuáles había para volver a ponerlos al final.`],
+      [`   c) Verificá la alineación: ${D.sheet}!A${D.firstRow} debe decir "${keyOf(first)}" y ${D.sheet}!A${D.lastRow} debe decir "${keyOf(last)}". Si no coinciden, NO pegues: descargá una copia nueva, volvé a cargarla en la herramienta y generá este archivo otra vez.`],
+      ['   d) Si otra persona está editando la hoja al mismo tiempo, coordiná antes de pegar.'],
       [],
       [`PASO 2 · Forecast DMR (${nR} filas × ${nC} meses, ${mLabel(M.fcMonths[0])} a ${mLabel(M.fcMonths.at(-1))}, en piezas)`],
       ['   a) En ESTE archivo, escribí BLOQUE_DMR en el cuadro de nombres (arriba a la izquierda, al lado de la barra de fórmulas) y Enter.'],
       ['   b) Ctrl+C.'],
-      [`   c) En el original, hoja ${D.sheet}, hacé clic en la celda ${c0}${D.firstRow}.`],
-      ['   d) Pegado especial (Ctrl+Alt+V) → marcá "Valores" y "Saltar blancos" → Aceptar.'],
+      [`   c) En el archivo de la nube, hoja ${D.sheet}, hacé clic en la celda ${c0}${D.firstRow}.`],
+      ['   d) Pegado especial (Ctrl+Alt+V) → marcá "Valores" y "Saltar blancos" → Aceptar. Nunca uses el pegado común (Ctrl+V): borraría fórmulas.'],
       [`   Resultado: se modifican ${res.changes.length - res.keptF} celdas (lista en la hoja Control_DMR). Todo lo demás queda igual.`],
+      ['   Si algo salió mal: Ctrl+Z lo revierte, aun con Autoguardado activado.'],
       [],
     ];
     if (vb) L.push(
       [`PASO 3 · Proyectos (hoja ${vb.sheet}, litros)`],
       ['   a) En ESTE archivo, escribí BLOQUE_VULOPPS en el cuadro de nombres y Enter → Ctrl+C.'],
-      [`   b) En el original, hoja ${vb.sheet}, clic en la celda ${colL(vb.c0)}${vb.r0} → Pegado especial → "Valores" + "Saltar blancos".`],
+      [`   b) En el archivo de la nube, hoja ${vb.sheet}, clic en la celda ${colL(vb.c0)}${vb.r0} → Pegado especial → "Valores" + "Saltar blancos".`],
       ['   La columna de descripción y los totales son fórmulas del original: el bloque los deja vacíos para no tocarlos.'],
       [],
     );
     L.push(
-      ['PASO FINAL · Guardá el original (mismo formato .xlsb) y devolvelo.'],
+      ['PASO FINAL · Cerrar'],
+      [`   a) Volvé a aplicar los filtros que había en ${D.sheet}.`],
+      ['   b) Controlá 2 o 3 celdas contra la hoja Control_DMR.'],
+      ['   c) No hace falta "Guardar como": con Autoguardado el archivo de la nube ya quedó actualizado y Demanda ve los cambios.'],
       [],
       ['Notas'],
       [`• ${res.replacedF} celdas tenían la fórmula =estadístico y tu valor es distinto: ` + (opts.keepFormulas ? 'NO se incluyeron (elegiste respetar fórmulas).' : 'se reemplazan por tu valor, como si lo escribieras a mano.')],
       ['• Contenido del DMR: ' + (opts.includeProj ? 'forecast final (base + proyectos ≥ ' + state.settings.projThreshold + '%).' : 'forecast base sin proyectos (los proyectos van por la hoja VULOPPS, así no se cuentan dos veces).')],
       res.newRows.length ? [`• ${res.newRows.length} combinaciones con forecast no existen en el original: están en la hoja Filas_nuevas para que Demanda decida cómo agregarlas.`] : ['• Todas las combinaciones con forecast existen en el original.'],
+      ['• Excel online (navegador) no tiene "Saltar blancos": este pegado tiene que hacerse siempre desde Excel de escritorio.'],
     );
     const wsL = XLSX.utils.aoa_to_sheet(L); wsL['!cols'] = [{ wch: 140 }];
     XLSX.utils.book_append_sheet(wb, wsL, 'LEEME');

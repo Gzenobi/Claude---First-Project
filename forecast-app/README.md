@@ -74,6 +74,7 @@ El archivo que se devuelve a Demanda tiene que conservar sus fórmulas y su estr
 - **Control_DMR**: lista cada celda que cambia, con la celda exacta, antes, después y si reemplaza una fórmula `=estadístico`.
 - **Filas_nuevas**: combinaciones o proyectos que no entran en la estructura del original (no se agregan filas). Quedan para cargar a mano o informar a Demanda.
 - Opciones: respetar las celdas con fórmula `=estadístico` aunque tu valor sea distinto, e incluir los proyectos dentro del DMR. Por defecto los proyectos van solo por VULOPPS, para no contarlos dos veces.
+- **Archivo en la nube** (SharePoint, OneDrive o Teams): bajá una copia para cargar en la herramienta y pegá los bloques en el archivo de la nube abierto con **Excel de escritorio** (*Editar → Abrir en la aplicación de escritorio*). Excel online no tiene "Saltar blancos". La hoja LEEME del archivo generado trae el paso a paso y la verificación de alineación por KEY.
 - El forecast inicial por defecto es el **DMR del archivo**, así solo viajan las correcciones que hiciste a conciencia. La propuesta estadística sigue disponible como *Sugerido*: está en el tooltip de cada celda, en la vista mensual, en el pop-up de curva y en la acción masiva "Completar con sugerido".
 
 Verificación realizada con el archivo real: después de simular el pegado sobre una copia del original, las 15.240 celdas del DMR quedaron con el valor esperado, solo se escribieron las celdas con cambios y las fórmulas no tocadas siguieron intactas.
