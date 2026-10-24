@@ -83,12 +83,20 @@ Verificación realizada con el archivo real: después de simular el pegado sobre
 
 | Hoja | Uso |
 |---|---|
-| `Forecast` (opcional) | Base de filas: KEY, cliente (OMP GROUP), KAM, SKU, code shape, descripción, sub-brand, PAC, clase estadística, historia **en piezas** (bloque *Actuals*), plan anterior (bloque *DMR*), estadístico (bloque *Estadístico*) y cartera (columnas 10/11/12 bajo *Carteira*). |
-| `Actuals` | Historia por cliente × producto (en litros). Completa el ProductId y agrega las combinaciones que tienen consumo pero no figuran en la hoja Forecast, marcadas como "solo Actuals", con el PAC estimado a partir de la descripción. |
-| `KAM` | Completa el KAM de las filas que no lo traen. |
-| `VULOPPS` | Proyectos: oportunidades (OPP) y vulnerabilidades (VUL) con probabilidad, en litros por mes. |
+| `Forecast` (opcional) | Base de filas: KEY, cliente (OMP GROUP), KAM, SKU, code shape, descripción, sub-brand, PAC, clase estadística (`Class` o `Classificacion`), FVA Average, COMP. B, historia **en piezas** (bloque *Actuals*), plan anterior (bloque *DMR*), estadístico (bloque *Estadístico*) y cartera (columnas 10/11/12 bajo *Carteira*). |
+| `Actuals` | Historia por cliente × producto (en litros hasta ago-26; la unidad de cada mes se detecta sola, ver abajo). Completa el ProductId y agrega las combinaciones que tienen consumo pero no figuran en la hoja Forecast, marcadas como "solo Actuals", con el PAC estimado a partir de la descripción. |
+| `KAM` | Completa el KAM de las filas que no lo traen. Si el archivo no trae KAM (desde nov-26), lo completa con la tabla *KAM por cliente* de Ajustes, que la app aprende de los archivos anteriores. |
+| `VULOPPS` | Proyectos: oportunidades (OPP) y vulnerabilidades (VUL) con probabilidad, en litros (o Kg, columna `Unid`) por mes. |
 
 La detección es automática: busca la fila de encabezados por nombre de columna (`OMPGroupName`, `ProductId`, `Description`, `CODE SAP`, etc.), reconoce las columnas de meses en formato fecha y clasifica cada bloque (real, plan o estadístico, y piezas o litros) a partir de las etiquetas de las filas de arriba. Si el archivo solo tiene una hoja tipo Actuals, trabaja en litros y propone un horizonte de 12 meses.
+
+### Cambios de formato desde nov-26
+
+- **Actuals:** los encabezados de mes dicen "Sum of DP Total Forecast" y la fecha está en la fila de arriba; la app la toma de ahí.
+- **Forecast:** sin columna KAM; `Class` pasó a `Classificacion`; nuevas columnas `FVA Average` y `COMP. B`.
+- **Partes B/C:** el DMR de las filas B/C es una fórmula `SUMIFS` sobre la Parte A del mismo cliente (vía `COMP. B`). La app las muestra bloqueadas, las recalcula al editar la A y nunca las vuelca.
+- **Mes en curso:** el DMR empieza en el mes en curso (oct-26 en el archivo de nov-26). La app pone el foco en el mes siguiente (nov-26) y muestra el ciclo como "Ciclo nov-26 · oct-26 en curso".
+- **Unidades:** desde sep-26 Demanda carga todo en piezas. Como no todos los archivos lo cumplen, la app decide la unidad de cada mes por el dato: con PAC no entero (3,6 L, 17,6 L) las piezas son números enteros y los litros no. En el archivo de nov-26, la columna sep-26 (en Forecast y en Actuals) vino en litros; la app la convierte a piezas y lo avisa con un cartel en *Resumen del mes*.
 
 > **Nota técnica:** SheetJS 0.18.5 (la última versión publicada en npm/CDN) no puede leer el `metadata.bin` que Excel 365 agrega a este `.xlsb` y falla con "Unexpected record 0x3b". La app lo resuelve quitando esa referencia del paquete en memoria antes de leerlo. No afecta a los datos.
 

@@ -89,6 +89,7 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
+      <div class="data-note" id="dataNote" hidden role="status"></div>
       <div class="hull">
         <p class="hull-title" id="hullTitle"></p>
         <div class="draft">
@@ -292,6 +293,11 @@
             <button class="btn btn-ghost" id="btnCfgImport">Importar configuración (.json)</button>
             <p class="muted small">La configuración incluye las reglas, los valores editados a mano y los bloqueos. Sirve para pasar tu trabajo a otra PC o retomar después de cargar un archivo nuevo.</p>
             <hr>
+            <div class="section-sub">KAM por cliente</div>
+            <p class="muted small">El archivo de nov-26 ya no trae el KAM. La app usa esta tabla y la actualiza sola cuando un archivo sí lo trae.</p>
+            <div id="kamTable" class="kam-table"></div>
+            <button class="btn btn-ghost" id="btnKamSave">Guardar KAM</button>
+            <hr>
             <div class="section-sub">Snapshots para forecast accuracy</div>
             <p class="muted small">Cada exportación guarda una foto del forecast. El mes que viene, al cargar el archivo con los consumos reales, el KPI “Forecast accuracy” compara contra esa foto.</p>
             <div id="snapList"></div>
@@ -379,11 +385,12 @@
       <div class="pm-grid">
         <label>Tipo<select id="pmType"><option value="OPP">OPP · Oportunidad (suma)</option><option value="VUL">VUL · Vulnerabilidad (resta)</option></select></label>
         <label>Probabilidad %<input id="pmProb" type="number" min="0" max="100"></label>
+        <label>Unidad<select id="pmUnit"><option value="L">Litros (L)</option><option value="Kg">Kilos (Kg)</option></select></label>
         <label class="pm-wide">Nombre del proyecto<input id="pmName" placeholder="Ej. Obra puerto Rosario – pintura tanques"></label>
         <label class="pm-wide">Cliente<select id="pmClient"></select></label>
         <label class="pm-wide">Producto (SKU)<input id="pmSku" list="pmSkuList" placeholder="Escribí SKU o descripción…"><datalist id="pmSkuList"></datalist></label>
       </div>
-      <div class="section-sub" style="margin-top:12px">Litros por mes</div>
+      <div class="section-sub" style="margin-top:12px">Cantidad por mes</div>
       <div class="pm-spread">
         <span>Repartir</span><input id="pmTotal" inputmode="decimal" placeholder="Total L" style="width:100px">
         <span>entre</span><select id="pmFrom"></select><span>y</span><select id="pmTo"></select>

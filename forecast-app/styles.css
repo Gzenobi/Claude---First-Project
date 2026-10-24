@@ -573,3 +573,17 @@ a.lnk { color: var(--hull); font-weight: 500; }
 
 .dw-metric > span { text-transform: none; font-size: 12px; font-weight: 600; }
 .nb-violet { background: #8A5E12; }  /* latón oscuro: 5,3:1 con texto blanco */
+
+/* celdas calculadas en el original (componentes B/C) */
+.fc-in.prot { background: repeating-linear-gradient(135deg, #EEF1F2 0 6px, #E4E9EC 6px 12px); color: var(--muted); font-style: italic; cursor: not-allowed; border-color: transparent; }
+.dw-alert.dw-info { border-left-color: var(--hull); background: #EEF3F7; }
+.kam-table { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 14px; width: 100%; }
+.kam-table label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.kam-table input { border: 1px solid var(--line); border-radius: 4px; padding: 5px 7px; font: inherit; font-weight: 400; color: var(--text); }
+
+.hbar.cur { background: repeating-linear-gradient(135deg, var(--sea) 0 5px, #357C78 5px 10px); }  /* mes en curso */
+
+.data-note { margin: 0 -28px; padding: 12px 28px; background: #FFF3D6; border-bottom: 1px solid #E8D7A0; color: #5C4410; font-size: 13.5px; }
+.data-note p { margin: 0; max-width: 1100px; }
+.data-note p + p { margin-top: 6px; }
+@media (max-width: 860px) { .data-note { margin: 0 -16px; padding: 10px 16px; } }

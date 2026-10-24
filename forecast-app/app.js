@@ -100,6 +100,16 @@
      =================================================================== */
   const LS_SESSION = 'fcApp.v1.session';
   const LS_SNAPS = 'fcApp.v1.snapshots';
+  const LS_KAM = 'fcApp.v1.kam';
+  // KAM por cliente. Desde nov-26 el archivo ya no trae la columna ni la hoja KAM: la app recuerda
+  // la última asignación conocida (y se puede editar en Ajustes). Base: archivo oct-26.
+  const DEFAULT_KAM = {
+    'M&P ARG ULTRACOLOR': 'Gabriel', 'M&P ARG TURDO': 'Pablo', 'M&P ARG SUMO': 'Pablo',
+    'M&P ARG BARCOS': 'Nicolas', 'M&P ARG NODO': 'Nicolas', 'M&P ARG PARAGUAY': 'Nicolas',
+    'M&P ARG OTHERS': 'All', 'M&P ARG BOLIVIA': 'Luis', 'M&P ARG CHILE': 'Luis', 'M&P ARG MEXICO': 'Luis',
+  };
+  function loadKamMap() { try { return { ...DEFAULT_KAM, ...JSON.parse(localStorage.getItem(LS_KAM) || '{}') }; } catch (e) { return { ...DEFAULT_KAM }; } }
+  function saveKamMap(m) { try { localStorage.setItem(LS_KAM, JSON.stringify(m)); } catch (e) { /* sin espacio */ } }
 
   const DEFAULT_SETTINGS = {
     window: 6,          // meses de historia para promedio / tendencia
@@ -164,6 +174,7 @@
 
   /** Marca cambios: recalcula lo necesario, invalida vistas y agenda guardado. */
   function touch() {
+    if (state.meta && state.rows.length) recomputeDerived().forEach((r) => { if (r._a) evalRow(r); });
     ['dashboard', 'monthly', 'clients', 'products', 'alerts'].forEach((v) => state.dirty.add(v));
     updateAlertBadge();
     saveSession();
@@ -186,7 +197,9 @@
     pc: ['pureprofitcenter', 'pc', 'profitcenter'],
     kam: ['kam', 'vendedor'],
     pac: ['pac', 'envase', 'packsize'],
-    cls: ['classstat', 'clase', 'class'],
+    cls: ['classstat', 'clase', 'class', 'classificacion', 'clasificacion'],
+    fva: ['fvaaverage', 'fva'],
+    compB: ['compb'],
     type: ['type', 'tipo'],
   };
   const FIELD_BY_ALIAS = {};
@@ -233,6 +246,15 @@
         const mk = toMonthKey(v);
         if (mk) months.push({ c, key: mk });
       });
+      // Formato nov-26 de Actuals: el encabezado dice "Sum of DP Total Forecast" y los meses
+      // están (como texto "2025-01") en la fila de arriba. Se toman de ahí, alineados por columna.
+      if ((cols.client != null || cols.sku != null) && months.length < 3) {
+        for (let k = 1; k <= 3 && r - k >= 0; k++) {
+          const up = [];
+          (aoa[r - k] || []).forEach((v, c) => { const mk = toMonthKey(v); if (mk) up.push({ c, key: mk }); });
+          if (up.length >= 3) { months.push(...up); break; }
+        }
+      }
       const score = Object.keys(cols).length * 2 + Math.min(months.length, 12);
       if ((cols.client != null || cols.sku != null) && months.length >= 3 && (!best || score > best.score)) best = { r, cols, months, score };
     }
@@ -274,7 +296,10 @@
   /** Elige, por sección y mes, una sola columna (prioriza piezas sobre litros). */
   function pickMonthCols(info, section) {
     const map = new Map();
-    info.months.filter((m) => m.section === section).forEach((m) => {
+    // si la sección tiene un bloque en piezas, se usa solo ese (no se mezclan meses del bloque en litros)
+    const all = info.months.filter((m) => m.section === section);
+    const pz = all.filter((m) => m.unit === 'pz');
+    (pz.length ? pz : all).forEach((m) => {
       const prev = map.get(m.key);
       if (!prev || (prev.unit !== 'pz' && m.unit === 'pz')) map.set(m.key, m);
     });
@@ -282,7 +307,16 @@
   }
 
   /** Extrae el tamaño de envase en litros de la descripción ("… 3,6L", "x 20L"). */
-  function pacFromDesc(desc) {
+  // ¿Valores en litros? Con PAC no entero, las piezas son enteras y los litros casi nunca.
+// true = litros, false = piezas, null = no hay datos suficientes para decidir.
+function looksLiters(pairs) {
+  const t = pairs.filter((p) => p.v > 0 && p.pac && Math.abs(p.pac - Math.round(p.pac)) > 1e-6);
+  if (t.length < 5) return null;
+  const frac = t.filter((p) => Math.abs(p.v - Math.round(p.v)) > 1e-6).length / t.length;
+  return frac > 0.3 ? true : frac < 0.05 ? false : null;
+}
+
+function pacFromDesc(desc) {
     const all = [...String(desc || '').matchAll(/(\d+(?:[.,]\d+)?)\s*L\b/gi)];
     if (!all.length) return null;
     const v = parseFloat(all[all.length - 1][1].replace(',', '.'));
@@ -300,7 +334,7 @@
     for (let r = 0; r < Math.min(aoa.length, 40); r++) { const row = (aoa[r] || []).map(norm); if (row.includes('vulops') && row.includes('sku')) { hr = r; break; } }
     if (hr < 0) return { projects: [], layout: null };
     const head = aoa[hr].map(norm), col = (n) => head.indexOf(n);
-    const C = { type: col('vulops'), prob: col(''), name: col('vulopsname'), client: col('ompgroup'), sku: col('sku'), desc: col('skudescription') };
+    const C = { type: col('vulops'), prob: col(''), name: col('vulopsname'), client: col('ompgroup'), sku: col('sku'), desc: col('skudescription'), unit: col('unid') };
     C.prob = aoa[hr].findIndex((v) => String(v || '').trim() === '%');
     const months = []; aoa[hr].forEach((v, c) => { const k = ymKey(v); if (k && fcMonths.includes(k) && !months.some((m) => m.key === k)) months.push({ c, key: k }); });
     const out = [];
@@ -322,12 +356,13 @@
         id: 'f' + r, source: 'archivo', slot: r + R0 + 1, type: /vul/i.test(String(row[C.type] || '')) ? 'VUL' : 'OPP',
         name: String(row[C.name] || '').trim() || '(sin nombre)', client: String(row[C.client] || '').trim(),
         sku: String(sku).trim(), desc: String(row[C.desc] || '').trim(), prob: Math.round(prob), liters,
+        unit: C.unit >= 0 && row[C.unit] ? String(row[C.unit]).trim() : 'L',
       });
     }
     const abs = (c) => c + C0;
     const layout = {
       sheet: sheetName, slots, orig,
-      cols: { prob: abs(C.prob), name: abs(C.name), client: abs(C.client), sku: abs(C.sku), desc: abs(C.desc) },
+      cols: { prob: abs(C.prob), name: abs(C.name), client: abs(C.client), sku: abs(C.sku), desc: abs(C.desc), unit: C.unit >= 0 ? abs(C.unit) : null },
       months: Object.fromEntries(months.map((m) => [m.key, abs(m.c)])),
     };
     return { projects: out, layout };
@@ -383,7 +418,7 @@
     const actSheet = sheets.find((s) => s !== fcSheet && /actual/i.test(s.name)) || sheets.find((s) => s !== fcSheet && !s.info.hasPlan) || null;
     loading('Armando modelo de datos…'); await nextTick();
 
-    const rows = []; const byId = new Map();
+    const rows = []; const byId = new Map(); const dataNotes = [];
     let histMonths = []; let fcMonths = []; let unit = 'L';
     const addRow = (r) => {
       let id = r.key || (r.client + '|' + r.sku); let n = 2;
@@ -408,6 +443,8 @@
           productId: String(get('productId') || ''), shape: String(get('shape') || ''), desc: String(get('desc') || '').trim(),
           group: String(get('group') || '').trim() || '(sin grupo)', kam: String(get('kam') || '').trim(),
           cls: String(get('cls') || '').trim(), pc: String(get('pc') || ''), type: String(get('type') || ''),
+          fva: get('fva') == null || get('fva') === '' ? null : toNum(get('fva')),
+          compB: get('compB') ? String(get('compB')).trim() : '',
           pac, origin: 'F',
           hist: hc.map((m) => toNum(row[m.c])),
           plan: fcMonths.map(() => 0), stat: fcMonths.map(() => 0), cart: fcMonths.map(() => 0),
@@ -421,7 +458,10 @@
         r.hasPlan = pc.length > 0; r.hasStat = sc.length > 0;
         // ubicación en el Excel original: fila y celdas del DMR que son fórmula (p. ej. =BI34)
         r.src = ri + R0 + 1;
-        r.planF = fcMonths.map((k) => { const m = pc.find((x) => x.key === k); const cell = m && cellAt(fcSheet.ws, ri + R0, m.c + C0); return cell && cell.f ? 1 : 0; });
+        r.planF = fcMonths.map((k) => {
+          const m = pc.find((x) => x.key === k); const cell = m && cellAt(fcSheet.ws, ri + R0, m.c + C0);
+          return !cell || !cell.f ? 0 : /SUMIFS\(/i.test(cell.f) ? 2 : 1;
+        });
         addRow(r);
       });
     }
@@ -442,19 +482,23 @@
         rows.forEach((r) => { const old = r.hist; r.hist = pos.map((j) => (j >= 0 ? old[j] : null)); });
       }
       const hIdx = new Map(histMonths.map((k, i) => [k, i]));
-      readRecords(actSheet.aoa, I).forEach(({ row, get }) => {
+      // Unidad de cada mes: desde sep-26 Demanda pasa todo a piezas, pero no todos los archivos lo cumplen.
+      // Se decide por el dato: con PAC no entero (3,6 L, 17,6 L…) las piezas son enteras y los litros no.
+      const recs = readRecords(actSheet.aoa, I).map(({ row, get }) => {
         const key = get('key') ? String(get('key')) : String(get('client') || '') + String(get('sku') || '');
-        const vals = ac.map((m) => toNum(row[m.c]));
         const existing = fcSheet ? byId.get(key) : null;
+        return { get, key, existing, vals: ac.map((m) => toNum(row[m.c])), pac: existing ? existing.pac : (fcSheet ? pacFromDesc(get('desc')) : null) };
+      });
+      const actInL = ac.map((m, j) => (fcSheet ? looksLiters(recs.map((x) => ({ v: x.vals[j], pac: x.pac }))) !== false : true));
+      const toPz = (v, pac, j) => (actInL[j] && pac ? v / pac : v);
+      recs.forEach(({ get, key, existing, vals, pac }) => {
         if (existing) {
           if (!existing.productId) existing.productId = String(get('productId') || '');
-          // completar meses sin dato con Actuals (litros → piezas)
-          ac.forEach((m, j) => { const i = hIdx.get(m.key); if (existing.hist[i] == null) existing.hist[i] = existing.pac ? vals[j] / existing.pac : vals[j]; });
+          // completar meses sin dato con Actuals
+          ac.forEach((m, j) => { const i = hIdx.get(m.key); if (existing.hist[i] == null) existing.hist[i] = toPz(vals[j], existing.pac, j); });
           return;
         }
         if (fcSheet && !vals.some((v) => v)) return; // combinación sin consumo y fuera del forecast: se ignora
-        const pac = fcSheet ? pacFromDesc(get('desc')) : null;
-        const conv = (v) => (fcSheet ? (pac ? v / pac : v) : v);
         const r = {
           key, client: String(get('client') || '').trim(), sku: String(get('sku') ?? '').trim(),
           productId: String(get('productId') || ''), shape: '', desc: String(get('desc') || '').trim(),
@@ -464,10 +508,21 @@
           plan: fcMonths.map(() => 0), stat: fcMonths.map(() => 0), cart: fcMonths.map(() => 0),
           hasPlan: false, hasStat: false,
         };
-        ac.forEach((m, j) => { r.hist[hIdx.get(m.key)] = conv(vals[j]); });
+        ac.forEach((m, j) => { r.hist[hIdx.get(m.key)] = fcSheet ? toPz(vals[j], pac, j) : vals[j]; });
         addRow(r);
       });
       if (!fcSheet) unit = 'L';
+    }
+
+    // Control de calidad del bloque "Actuals en piezas" de Forecast: un mes cargado en litros
+    // (pasó en nov-26 con sep-26) se convierte a piezas con el PAC.
+    if (fcSheet) {
+      histMonths.forEach((m, i) => {
+        const fr = rows.filter((r) => r.origin === 'F' && r.pac && r.hist[i] != null);
+        if (looksLiters(fr.map((r) => ({ v: r.hist[i], pac: r.pac }))) !== true) return;
+        fr.forEach((r) => { r.hist[i] = r.hist[i] / r.pac; });
+        dataNotes.push(`En la hoja ${fcSheet.name}, la columna de ${mLabel(m)} del bloque "Actuals en piezas" vino cargada en litros (valores como 28,8 o 172,8 en envases de 3,6 L, que no pueden ser piezas). La app la convirtió a piezas con el PAC. Conviene avisar a Demanda: los promedios del Excel también quedan inflados.`);
+      });
     }
 
     // KAM desde hoja auxiliar si no vino en la grilla (hoja "KAM": KAM | Cliente)
@@ -476,6 +531,11 @@
       XLSX.utils.sheet_to_json(wb.Sheets.KAM, { header: 1, raw: true }).forEach((a) => { if (a && a[0] && a[1]) kmap.set(String(a[1]).trim(), String(a[0]).trim()); });
       rows.forEach((r) => { if (!r.kam && kmap.has(r.client)) r.kam = kmap.get(r.client); });
     }
+    // Memoria de KAM: aprende de los archivos que lo traen y completa los que no
+    const kamMap = loadKamMap(); let kamLearned = 0, kamFromMemory = 0;
+    rows.forEach((r) => { if (r.kam && r.kam !== '0' && kamMap[r.client] !== r.kam) { kamMap[r.client] = r.kam; kamLearned++; } });
+    if (kamLearned) saveKamMap(kamMap);
+    rows.forEach((r) => { if (!r.kam && kamMap[r.client]) { r.kam = kamMap[r.client]; kamFromMemory++; } });
 
     // Proyectos (oportunidades / vulnerabilidades) desde la hoja VULOPPS
     const vul = vulName && wb.Sheets[vulName] ? parseVulopps(XLSX.utils.sheet_to_json(wb.Sheets[vulName], { header: 1, raw: true, defval: null }), fcMonths, XLSX.utils.decode_range(wb.Sheets[vulName]['!ref']), vulName) : { projects: [], layout: null };
@@ -498,6 +558,11 @@
         sheets: { forecast: fcSheet && fcSheet.name, actuals: actSheet && actSheet.name },
         hasPlan: rows.some((r) => r.hasPlan), hasStat: rows.some((r) => r.hasStat),
         hasPac: unit === 'pz', parseMs: ms, dmr, vul: vul.layout,
+        // Mes foco del ciclo: si el estadístico arranca después que el DMR (p. ej. archivo nov-26 con DMR desde
+        // oct-26), el primer mes del DMR es el mes en curso y el foco es el primero del estadístico.
+        focusIdx: (() => { const st = rows.find((r) => r.hasStat) ? pickMonthCols(fcSheet ? fcSheet.info : { months: [] }, 'stat') : []; const i = st.length ? fcMonths.indexOf(st[0].key) : 0; return i > 0 ? i : 0; })(),
+        kamFromMemory, dataNotes, hasFva: rows.some((r) => r.fva != null),
+        protCells: rows.reduce((t, r) => t + (r.planF ? r.planF.filter((x) => x === 2).length : 0), 0),
       },
       rows,
     };
@@ -719,7 +784,8 @@
     const prevFc = state.fc, prevMan = state.manual, prevMonths = keepManual && keepManual.months;
     state.fc = {}; state.manual = {};
     state.rows.forEach((r) => {
-      const base = S.initFrom === 'plan' && r.hasPlan && sum(r.plan) > 0 ? r.plan.slice() : r._a.sug.slice();
+      // desde el DMR: se respeta tal cual (también si está en cero) para que al volcar solo viajen los cambios hechos a mano
+      const base = S.initFrom === 'plan' && r.hasPlan ? r.plan.slice() : r._a.sug.slice();
       state.fc[r.id] = base; state.manual[r.id] = base.map(() => 0);
       // conservar valores manuales de la sesión anterior para los mismos meses
       if (prevMonths && prevMan[r.id]) {
@@ -764,6 +830,38 @@
      5. OPERACIONES DE FORECAST
      =================================================================== */
 
+  /** Celda calculada en el original (SUMIFS de las Partes A): no se edita ni se vuelca. */
+  const isProt = (r, i) => !!(r.planF && r.planF[i] === 2);
+
+  /**
+   * Componentes B/C: en el original sus meses con SUMIFS valen la suma de las Partes A del mismo
+   * cliente que los declaran en "COMP. B". La app replica ese cálculo para que los totales cierren.
+   * Devuelve las filas que cambiaron.
+   */
+  function recomputeDerived() {
+    if (!state.childrenOf) {
+      state.childrenOf = {}; state.parentsOf = {};
+      const bySku = new Map(); state.rows.forEach((r) => { if (r.compB) { const k = r.client + '|' + r.compB; if (!bySku.has(k)) bySku.set(k, []); bySku.get(k).push(r); } });
+      state.rows.forEach((r) => {
+        if (!r.planF || !r.planF.includes(2)) return;
+        const ps = bySku.get(r.client + '|' + r.sku) || [];
+        state.parentsOf[r.id] = ps.map((p) => p.id);
+        ps.forEach((p) => (state.childrenOf[p.id] = state.childrenOf[p.id] || []).push(r.id));
+      });
+    }
+    const changed = [];
+    Object.entries(state.parentsOf).forEach(([id, ps]) => {
+      const r = state.byId.get(id); if (!r) return; let ch = false;
+      r.planF.forEach((f, i) => {
+        if (f !== 2) return;
+        const v = sum(ps.map((pid) => (state.fc[pid] ? state.fc[pid][i] : 0)));
+        if (Math.round(v) !== Math.round(state.fc[id][i])) { state.fc[id][i] = v; ch = true; }
+      });
+      if (ch) changed.push(r);
+    });
+    return changed;
+  }
+
   /** Edición manual de una celda: queda bloqueada. Recalcula solo esa fila. */
   function setCell(id, i, value) {
     const r = state.byId.get(id); if (!r) return;
@@ -799,6 +897,7 @@
     rows.forEach((r) => {
       const fc = dry ? state.fc[r.id].slice() : state.fc[r.id], man = dry ? state.manual[r.id].slice() : state.manual[r.id];
       for (let i = from; i <= to; i++) {
+        if (isProt(r, i)) continue; // calculada en el original desde las Partes A
         if (action === 'lock') { if (!man[i]) { man[i] = 1; n++; } continue; }
         if (action === 'unlock') { if (man[i]) { man[i] = 0; n++; } continue; }
         if (man[i]) continue;
@@ -952,12 +1051,12 @@
   }
 
   function renderDashboard(rows) {
-    const M = state.meta, S = state.settings, H = M.fcMonths.length;
+    const M = state.meta, S = state.settings, H = M.fcMonths.length, F = M.focusIdx || 0;
     const uL = M.unit === 'pz' ? 'L' : M.unit;
     let next = 0, projH = 0, projRows = 0, avgL = 0, horizon = 0, plan = 0, planHas = false, alerts = 0, alertsMain = 0, alertsHigh = 0, risk = 0, riskHigh = 0, none = 0, lockedRows = 0, lockedCells = 0, active = 0;
     rows.forEach((r) => {
       const a = r._a, e = r._e, fc = e.fin;
-      next += toL(r, fc[0]); projH += e.projL; if (e.projSum) projRows++; avgL += e.avgL; horizon += e.fcL; plan += toL(r, e.planSum); if (r.hasPlan) planHas = true;
+      next += toL(r, fc[F]); projH += e.projL; if (e.projSum) projRows++; avgL += e.avgL; horizon += e.fcL; plan += toL(r, e.planSum); if (r.hasPlan) planHas = true;
       if (e.alerts.length) alerts++;
       if (e.alerts.some((x) => x.sev !== 'low')) alertsMain++;
       if (e.alerts.some((x) => x.sev === 'high')) alertsHigh++;
@@ -967,6 +1066,9 @@
       if (a.avgN > 0 || e.fcSum > 0) active++;
     });
     const acc = accuracy(rows);
+    const notes = M.dataNotes || [];
+    $id('dataNote').hidden = !notes.length;
+    $id('dataNote').innerHTML = notes.map((n) => `<p><b>Aviso del archivo.</b> ${esc(n)}</p>`).join('');
     renderHull(rows, { next, avgL, horizon, plan, planHas, risk, riskHigh, none, lockedRows, lockedCells, projH, projRows, acc, uL });
 
     // Variaciones por grupo (forecast promedio vs promedio histórico)
@@ -1012,8 +1114,9 @@
     const pln = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.plan[i]))));
     const n = nH + M.fcMonths.length;
     const top = Math.max(...real, ...fin, ...(k.planHas ? pln : [0]), k.avgL, 1) * 1.08;
-    const month = M.fcMonths[0], mName = MES_LARGO[+month.slice(5) - 1] + ' ' + month.slice(0, 4);
-    const vsAvg = k.avgL ? k.next / k.avgL - 1 : null, vsPlan = k.planHas && pln[0] ? k.next / pln[0] - 1 : null;
+    const F = M.focusIdx || 0;
+    const month = M.fcMonths[F], mName = MES_LARGO[+month.slice(5) - 1] + ' ' + month.slice(0, 4);
+    const vsAvg = k.avgL ? k.next / k.avgL - 1 : null, vsPlan = k.planHas && pln[F] ? k.next / pln[F] - 1 : null;
     const dir = (v) => (v == null ? '' : `<span class="${v >= 0 ? 'up' : 'down'}">${nf0.format(Math.abs(v * 100))}% ${v >= 0 ? 'arriba' : 'abajo'}</span>`);
     $id('hullTitle').textContent = `Forecast de ${mName}`;
     $id('hullMark').innerHTML = (k.next >= 10000 ? nf1.format(k.next / 1000) + '<span>mil ' + k.uL + '</span>' : nf0.format(k.next) + `<span>${k.uL}</span>`);
@@ -1028,9 +1131,9 @@
       html += `<div class="hbar real" style="height:${(real[j] / top) * 100}%" title="${mLabel(m)}: ${fmt(real[j])} ${k.uL} reales">${j % step === 0 ? `<span class="m">${mLabel(m)}</span>` : ''}</div>`;
     });
     M.fcMonths.forEach((m, i) => {
-      const tip = `${mLabel(m)}: forecast ${fmt(fin[i])} ${k.uL}` + (k.planHas ? ` · plan anterior ${fmt(pln[i])}` : '') + (prj[i] ? ` · proyectos ${fmt(prj[i])}` : '') + ' · clic para ver el mes';
+      const tip = `${mLabel(m)}${i < F ? ' (mes en curso)' : ''}: forecast ${fmt(fin[i])} ${k.uL}` + (k.planHas ? ` · plan anterior ${fmt(pln[i])}` : '') + (prj[i] ? ` · proyectos ${fmt(prj[i])}` : '') + ' · clic para ver el mes';
       const projH = fin[i] > 0 && prj[i] > 0 ? (prj[i] / fin[i]) * 100 : 0;
-      html += `<button class="hbar fc${i === 0 ? ' now' : ''}" data-month="${i}" style="height:${(fin[i] / top) * 100}%" title="${esc(tip)}" aria-label="${esc(tip)}">`
+      html += `<button class="hbar fc${i === F ? ' now' : ''}${i < F ? ' cur' : ''}" data-month="${i}" style="height:${(fin[i] / top) * 100}%" title="${esc(tip)}" aria-label="${esc(tip)}">`
         + (projH ? `<span class="proj" style="height:${projH}%"></span>` : '')
         + (k.planHas && fin[i] ? `<span class="plan" style="bottom:${(pln[i] / fin[i]) * 100}%"></span>` : '')
         + ((nH + i) % step === 0 ? `<span class="m">${mLabel(m)}</span>` : '') + '</button>';
@@ -1159,6 +1262,7 @@
           const tip = `Sugerido: ${fmt(r._a.sug[i])}` + (r.hasPlan ? ` · Plan anterior: ${fmt(r.plan[i])}` : '') + (r.hasStat ? ` · Estadístico: ${fmt(r.stat[i])}` : '') + (r.cart[i] ? ` · Cartera: ${fmt(r.cart[i])}` : '') + (man ? ' · 🔒 bloqueado' : '');
           const pj = state.projRow[r.id] && state.projRow[r.id][i];
           const pjTag = pj ? `<span class="pj ${pj < 0 ? 'neg' : ''}" title="Proyectos VULOPPS incluidos en este mes. Forecast final = ${fmt(Math.max(0, v + pj))}">${pj > 0 ? '+' : ''}${fmt(pj)}</span>` : '';
+          if (isProt(r, i)) return `<input class="fc-in prot" value="${fmt(v)}" disabled title="Componente ${esc(r.type || 'B/C')}: en el original se calcula sumando las Partes A que lo usan. Se actualiza solo al cambiar esas filas.">`;
           return `<input class="fc-in ${cellClassFc(r, v)}${man ? ' manual' : ''}" data-id="${esc(r.id)}" data-m="${i}" value="${fmt(v)}" title="${esc(tip + ' · Base (sin proyectos)')}" inputmode="decimal">${pjTag}`;
         },
       });
@@ -1203,7 +1307,7 @@
   /** Re-renderiza solo las celdas calculadas de una fila (y la celda editada). */
   function refreshGridRow(id, editedM) {
     if (!grid) return;
-    const row = grid.row('#row-' + id);
+    const row = grid.row((idx, data) => data.id === id);
     if (!row.any()) return;
     gridCols.forEach((c, ci) => { if (c._calc || (editedM != null && c._fc === editedM)) grid.cell(row.index(), ci).invalidate('data'); });
   }
@@ -1222,8 +1326,8 @@
   function fillMonthSelectors() {
     const o = state.meta.fcMonths.map((k, i) => `<option value="${i}">${mLabel(k)}</option>`).join('');
     $id('mFrom').innerHTML = o; $id('mTo').innerHTML = o;
-    $id('mFrom').value = 0; $id('mTo').value = state.meta.fcMonths.length - 1;
-    $id('monthSel').innerHTML = o;
+    $id('mFrom').value = state.meta.focusIdx || 0; $id('mTo').value = state.meta.fcMonths.length - 1;
+    $id('monthSel').innerHTML = o; $id('monthSel').value = state.meta.focusIdx || 0;
   }
 
   /** Commit de una celda editada en grilla o vista mensual. */
@@ -1238,7 +1342,7 @@
     // refresco incremental: solo la fila editada
     inp.value = fmt(state.fc[id][i]);
     inp.className = 'fc-in ' + cellClassFc(r, state.fc[id][i]) + ' manual';
-    if (inp.closest('#tblGrid')) refreshGridRow(id, null);
+    if (inp.closest('#tblGrid')) { refreshGridRow(id, null); (state.childrenOf && state.childrenOf[id] || []).forEach(refreshGridRowFull); }
     else { state.dirty.add('grid'); refreshMonthRow(id); }
   }
 
@@ -1264,6 +1368,7 @@
     if (rows.some((r) => r.cart[i])) cols.push({ title: 'Cartera', data: null, className: 'num', render: n((r) => r.cart[i]) });
     cols.push({ title: 'Forecast ' + mLabel(k), data: null, className: 'num fc fcm sep', _fc: true, orderSequence: ['desc', 'asc'], render: (r, t) => {
       const v = state.fc[r.id][i]; if (t !== 'display') return v;
+      if (isProt(r, i)) return `<input class="fc-in prot" value="${fmt(v)}" disabled title="Calculado desde las Partes A">`;
       return `<input class="fc-in ${cellClassFc(r, v)}${state.manual[r.id][i] ? ' manual' : ''}" data-id="${esc(r.id)}" data-m="${i}" value="${fmt(v)}" inputmode="decimal">`;
     } });
     if (state.projects.length) {
@@ -1291,7 +1396,7 @@
   }
   function refreshMonthRow(id) {
     if (!monthTbl) return;
-    const row = monthTbl.row('#mrow-' + id); if (!row.any()) return;
+    const row = monthTbl.row((idx, data) => data.id === id); if (!row.any()) return;
     monthTbl._cols.forEach((c, ci) => { if (c._calc) monthTbl.cell(row.index(), ci).invalidate('data'); });
   }
 
@@ -1424,9 +1529,11 @@
       m('Backtest error', a.btAct ? nf0.format((a.btErr / a.btAct) * 100) + '%' : '–'),
       M.hasPac ? m('PAC', r.pac ? fmt1(r.pac) + ' L' : 'sin dato') : '',
       m('Clase', r.cls || '–'),
+      M.hasFva ? m('FVA promedio', r.fva == null ? '–' : nf0.format(r.fva * 100) + '%') : '',
       m('Cartera', sum(r.cart) ? r.cart.map((c, i) => (c ? mLabel(M.fcMonths[i]) + ': ' + fmt(c) : '')).filter(Boolean).join(' · ') : '–'),
     ].join('');
-    $id('dwAlerts').innerHTML = e.alerts.length ? e.alerts.map((x) => `<div class="dw-alert"><b>${ALERT_TYPES[x.t]}</b> · ${esc(x.msg)}</div>`).join('') : '<p class="muted">Sin alertas.</p>';
+    const protN = r.planF ? r.planF.filter((x) => x === 2).length : 0;
+    $id('dwAlerts').innerHTML = (protN ? `<div class="dw-alert dw-info"><b>Componente ${esc(r.type || 'B/C')}</b> · ${protN} meses se calculan en el original sumando las Partes A de ${esc(r.client.replace(/^M&P ARG /, ''))} que lo usan. Se actualizan solos.</div>` : '') + (e.alerts.length ? e.alerts.map((x) => `<div class="dw-alert"><b>${ALERT_TYPES[x.t]}</b> · ${esc(x.msg)}</div>`).join('') : '<p class="muted">Sin alertas.</p>');
     $id('drawer').classList.add('open'); $id('backdrop').classList.add('show');
   }
   function closeDrawer() { $id('drawer').classList.remove('open'); $id('backdrop').classList.remove('show'); drawerId = null; }
@@ -1595,7 +1702,7 @@
     // se mantiene, así que se descuenta del total pedido para que el cliente cierre exactamente
     const outside = modal.rows.filter((r) => !base.includes(r));
     for (let i = 0; i < H; i++) {
-      const locked = respect ? base.filter((r) => state.manual[r.id][i]) : [];
+      const locked = base.filter((r) => isProt(r, i) || (respect && state.manual[r.id][i]));
       const lockedL = sum(locked.map((r) => toL(r, state.fc[r.id][i])));
       const outsideL = sum(outside.map((r) => toL(r, state.fc[r.id][i])));
       const free = base.filter((r) => !locked.includes(r));
@@ -1628,6 +1735,7 @@
       const r = modal.rows[0];
       pushUndo([r.id], 'pop-up de previsión');
       modal.values.forEach((v, i) => {
+        if (isProt(r, i)) return;
         if (respect && state.manual[r.id][i] && !lockApplied) return;
         if (state.fc[r.id][i] !== v) n++;
         state.fc[r.id][i] = Math.max(0, Math.round(v));
@@ -1711,7 +1819,7 @@
       { title: 'SKU', data: 'sku' },
       { title: 'Descripción', data: 'desc', className: 'desc' },
       { title: 'Prob.', data: 'prob', className: 'num', render: (v, t) => (t === 'display' ? v + '%' : v) },
-      { title: 'Total L', data: null, className: 'num', render: (p, t) => { const v = sum(Object.values(p.liters)); return t === 'display' ? fmt(v) : v; } },
+      { title: 'Total', data: null, className: 'num', render: (p, t) => { const v = sum(Object.values(p.liters)); return t === 'display' ? fmt(v) + ' ' + (p.unit || 'L') : v; } },
       { title: 'Meses', data: null, render: (p) => span(p) },
       { title: 'Origen', data: 'source', render: (v, t, p) => (t === 'display' ? (v === 'manual' ? 'Carga manual' : 'VULOPPS') + (p._noPac ? ' <span class="badge b-med" title="El producto no tiene PAC: no se puede convertir a piezas">sin PAC</span>' : '') : v) },
       { title: '', data: null, orderable: false, render: (p) => `<button class="btn btn-ghost btn-xs" data-pjedit="${esc(p.id)}">Editar</button>` },
@@ -1737,6 +1845,7 @@
     $id('pmSkuList').innerHTML = state.rows.filter((r) => !seen.has(r.sku) && seen.add(r.sku)).map((r) => `<option value="${esc(r.sku + ' — ' + r.desc)}">`).join('');
     $id('pmSku').value = p ? p.sku + ' — ' + p.desc : '';
     $id('pmProb').value = p ? p.prob : 70;
+    $id('pmUnit').value = p && p.unit === 'Kg' ? 'Kg' : 'L';
     $id('pmTotal').value = ''; $id('pmFrom').innerHTML = $id('pmTo').innerHTML = M.fcMonths.map((k, i) => `<option value="${i}">${mLabel(k)}</option>`).join('');
     $id('pmFrom').value = 0; $id('pmTo').value = Math.min(2, M.fcMonths.length - 1);
     $id('pmMonths').innerHTML = M.fcMonths.map((k) => `<label class="pm-m">${mLabel(k)}<input data-pm="${k}" inputmode="decimal" value="${p && p.liters[k] ? fmt(p.liters[k]) : ''}"></label>`).join('');
@@ -1760,7 +1869,7 @@
     if (!name) { toast('Poné un nombre al proyecto', true); return; }
     if (!sku) { toast('Elegí el producto (SKU)', true); return; }
     if (!Object.keys(liters).length) { toast('Cargá los litros de al menos un mes', true); return; }
-    const data = { type: $id('pmType').value, name, client, sku, desc, prob, liters };
+    const data = { type: $id('pmType').value, name, client, sku, desc, prob, liters, unit: $id('pmUnit').value };
     if (projEditing) Object.assign(state.projects.find((x) => x.id === projEditing), data);
     else state.projects.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), source: 'manual', ...data });
     closeProjectModal(); refreshProjects(); rebuildGridIfOpen(); renderView();
@@ -1815,6 +1924,9 @@
 
   /* ---------- 7.7 Configuración ---------- */
   function renderSettings() {
+    const km = loadKamMap();
+    const clients = [...new Set([...(state.rows || []).map((r) => r.client), ...Object.keys(km)])].filter(Boolean).sort();
+    $id('kamTable').innerHTML = clients.map((cl) => `<label>${esc(cl.replace(/^M&P ARG /, ''))}<input data-kam="${esc(cl)}" value="${esc(km[cl] || '')}" placeholder="Sin KAM"></label>`).join('');
     const f = $id('settingsForm');
     Object.entries(state.settings).forEach(([k, v]) => { if (f.elements[k]) f.elements[k].value = v; });
     const snaps = loadSnaps();
@@ -1936,7 +2048,7 @@
       const vals = opts.includeProj ? r._e.fin : state.fc[r.id];
       if (!r.src) { if (sum(vals)) out.newRows.push(r); return; } // no existe en el original
       M.fcMonths.forEach((k, i) => {
-        if (D.cols[i] == null) return;
+        if (D.cols[i] == null || isProt(r, i)) return; // el original la recalcula solo
         // sin recortar a 0: el DMR original puede tener negativos (ajustes) que no se tocaron
         const nv = Math.round(vals[i]), ov = r.plan[i] || 0, isF = r.planF && r.planF[i];
         if (nv === Math.round(ov)) return; // sin cambio → blanco
@@ -1972,6 +2084,7 @@
         used.add(row); written.push({ p, row });
         set(row, V.cols.prob, p.prob / 100); set(row, V.cols.name, p.name); set(row, V.cols.client, p.client);
         set(row, V.cols.sku, isNaN(+p.sku) ? p.sku : +p.sku);
+        if (V.cols.unit != null) set(row, V.cols.unit, p.unit || 'L');
         const before = V.orig[row] || {};
         Object.entries(V.months).forEach(([k, col]) => { const v = p.liters[k] || 0; if (v || before[k]) set(row, col, Math.round(v)); });
       });
@@ -2148,7 +2261,7 @@
   /* ===================================================================
      10. INICIALIZACIÓN Y EVENTOS
      =================================================================== */
-  function indexRows() { state.byId = new Map(state.rows.map((r) => [r.id, r])); }
+  function indexRows() { state.byId = new Map(state.rows.map((r) => [r.id, r])); state.childrenOf = null; state.parentsOf = null; }
 
   function afterDataReady() {
     indexRows();
@@ -2157,7 +2270,7 @@
     const M = state.meta;
     $id('fileInfo').innerHTML = `<b>${esc(M.fileName)}</b><br>${nf0.format(state.rows.length)} combinaciones · ${M.histMonths.length} meses de historia<br>Hojas: ${esc([M.sheets.forecast, M.sheets.actuals].filter(Boolean).join(' + '))} · unidad ${M.unit === 'pz' ? 'piezas' : M.unit}`;
     $id('btnExport').disabled = false; $id('btnExportOrig').disabled = false;
-    $id('cycleLabel').textContent = 'Ciclo ' + mLabel(M.fcMonths[0]);
+    $id('cycleLabel').textContent = 'Ciclo ' + mLabel(M.fcMonths[M.focusIdx || 0]) + (M.focusIdx ? ` · ${mLabel(M.fcMonths[0])} en curso` : '');
     document.querySelectorAll('.nav-item').forEach((b) => (b.disabled = false));
     if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; }
     $id('monthSel').innerHTML = '';
@@ -2184,7 +2297,9 @@
       afterDataReady();
       showView('dashboard');
       const nInc = state.projects.filter((p) => p._incl).length;
-      toast(`Archivo cargado en ${(meta.parseMs / 1000).toFixed(1)} s: ${nf0.format(rows.length)} combinaciones · VULOPPS: ${state.projects.length} proyectos (${nInc} ≥ ${state.settings.projThreshold}%)`);
+      toast(`Archivo cargado en ${(meta.parseMs / 1000).toFixed(1)} s: ${nf0.format(rows.length)} combinaciones · VULOPPS: ${state.projects.length} proyectos (${nInc} ≥ ${state.settings.projThreshold}%)`
+        + (meta.kamFromMemory ? ` · KAM completado desde Ajustes en ${nf0.format(meta.kamFromMemory)} filas` : '')
+        + (!meta.sheets.actuals ? ' · No se encontró la hoja Actuals' : ''));
     } catch (e) {
       console.error(e);
       toast('No se pudo leer el archivo: ' + e.message, true);
@@ -2346,6 +2461,14 @@
       saveSession(); renderSettings();
       toast('Reglas guardadas y recalculadas');
     });
+    $id('btnKamSave').addEventListener('click', () => {
+      const km = loadKamMap();
+      document.querySelectorAll('#kamTable [data-kam]').forEach((i) => { const v = i.value.trim(); if (v) km[i.dataset.kam] = v; else delete km[i.dataset.kam]; });
+      saveKamMap(km);
+      state.rows.forEach((r) => { r.kam = km[r.client] || ''; });
+      if (state.meta) { fillFilterOptions(); touch(); if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; } }
+      toast('KAM guardados');
+    });
     $id('btnCfgExport').addEventListener('click', exportConfig);
     $id('btnCfgImport').addEventListener('click', () => $id('cfgInput').click());
     $id('cfgInput').addEventListener('change', async (e) => {
@@ -2360,7 +2483,7 @@
 
   function refreshGridRowFull(id) {
     if (!grid || state.view !== 'grid') { state.dirty.add('grid'); return; }
-    const row = grid.row('#row-' + id); if (row.any()) row.invalidate('data');
+    const row = grid.row((idx, data) => data.id === id); if (row.any()) row.invalidate('data');
   }
 
   function updateParamField() {
