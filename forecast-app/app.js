@@ -106,7 +106,9 @@
     growthPct: 5,       // % para el método crecimiento
     alertPct: 50,       // umbral de desvío forecast vs promedio
     spikeFactor: 3,     // pico = valor > N × promedio del resto
-    histVisible: 6,     // meses de historia visibles en la grilla
+    histVisible: 3,     // meses de historia visibles en la grilla
+    showMeta: false,    // columnas Grupo / KAM / PAC en la grilla (ocultas por defecto: dejan ver los meses editables)
+    uiV: 2,             // versión de preferencias de interfaz (migra sesiones viejas)
     initFrom: 'plan',   // arrancar del DMR del archivo: al volcar al original solo viajan los cambios hechos a conciencia
     projThreshold: 70,  // % mínimo de probabilidad para que un proyecto VULOPPS entre al forecast
   };
@@ -154,6 +156,7 @@
       state.meta = s.meta; state.rows = s.rows; state.fc = s.fc || {}; state.manual = s.manual || {};
       state.projects = s.projects || []; state.excl = s.excl || {};
       state.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
+      if ((s.settings || {}).uiV !== 2) Object.assign(state.settings, { histVisible: 3, showMeta: false, uiV: 2 });
       return true;
     } catch (e) { return false; }
   }
@@ -686,18 +689,20 @@
     const devPlan = planSum > 0 ? fcSum / planSum - 1 : null;
     const alerts = [];
     const lim = S.alertPct / 100;
-    if (a.avgN > 0 && Math.abs(dev) > lim) alerts.push({ t: 'DEV', sev: Math.abs(dev) > 2 * lim ? 'high' : 'med', msg: `Forecast ${fmtPct(dev)} vs promedio ${S.window}m (${fmt1(fcAvgW)} vs ${fmt1(a.avgN)} ${M.unit}/mes)` });
-    if (a.avgN === 0 && baseSum > 0) alerts.push({ t: 'NOHIST', sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast base ${fmt(baseSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
-    if (a.avgN > 0 && fc3 === 0) alerts.push({ t: 'NOFC', sev: 'high', msg: `Consume ${fmt1(a.avgN)} ${M.unit}/mes y no tiene forecast en los próximos 3 meses` });
-    if (a.spikes.length) alerts.push({ t: 'SPIKE', sev: 'low', msg: 'Pico en ' + a.spikes.map(mLabel).join(', ') + ' (distorsiona el promedio)' });
+    // act = accionable (hay que hacer algo); imp = impacto en litros/mes para ordenar
+    if (a.avgN > 0 && Math.abs(dev) > lim) alerts.push({ t: 'DEV', act: false, imp: Math.abs(toL(r, fcAvgW - a.avgN)), sev: Math.abs(dev) > 2 * lim ? 'high' : 'med', msg: `Forecast ${fmtPct(dev)} vs promedio ${S.window}m (${fmt1(fcAvgW)} vs ${fmt1(a.avgN)} ${M.unit}/mes)` });
+    if (a.avgN === 0 && baseSum > 0) alerts.push({ t: 'NOHIST', act: !/npi/i.test(r.cls), imp: toL(r, baseSum / H), sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast base ${fmt(baseSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
+    if (a.avgN > 0 && fc3 === 0) alerts.push({ t: 'NOFC', act: true, imp: toL(r, a.avgN), sev: 'high', msg: `Consume ${fmt1(a.avgN)} ${M.unit}/mes y no tiene forecast en los próximos 3 meses` });
+    if (a.spikes.length) alerts.push({ t: 'SPIKE', act: false, imp: 0, sev: 'low', msg: 'Pico en ' + a.spikes.map(mLabel).join(', ') + ' (distorsiona el promedio)' });
     let risk = '';
     const cartOver = r.cart.findIndex((c, i) => c > 0 && c > fc[i]);
-    if (cartOver >= 0) { risk = 'high'; alerts.push({ t: 'RISK', sev: 'high', msg: `Cartera ${fmt(r.cart[cartOver])} > forecast ${fmt(fc[cartOver])} en ${mLabel(M.fcMonths[cartOver])}` }); }
-    else if (a.status !== 'interm' && a.avg3 > 0 && fc[0] < 0.6 * a.avg3) { risk = 'med'; alerts.push({ t: 'RISK', sev: 'med', msg: `Forecast de ${mLabel(M.fcMonths[0])} (${fmt(fc[0])}) < 60% del consumo de los últimos 3 meses (${fmt1(a.avg3)})` }); }
-    if (devPlan != null && Math.abs(devPlan) > lim) alerts.push({ t: 'PLAN', sev: 'low', msg: `Total ${fmtPct(devPlan)} vs plan anterior (${fmt(fcSum)} vs ${fmt(planSum)})` });
+    if (cartOver >= 0) { risk = 'high'; alerts.push({ t: 'RISK', act: true, imp: toL(r, r.cart[cartOver] - fc[cartOver]), sev: 'high', msg: `Cartera ${fmt(r.cart[cartOver])} > forecast ${fmt(fc[cartOver])} en ${mLabel(M.fcMonths[cartOver])}` }); }
+    else if (a.status !== 'interm' && a.avg3 > 0 && fc[0] < 0.6 * a.avg3) { risk = 'med'; alerts.push({ t: 'RISK', act: true, imp: toL(r, a.avg3 - fc[0]), sev: 'med', msg: `Forecast de ${mLabel(M.fcMonths[0])} (${fmt(fc[0])}) < 60% del consumo de los últimos 3 meses (${fmt1(a.avg3)})` }); }
+    if (devPlan != null && Math.abs(devPlan) > lim) alerts.push({ t: 'PLAN', act: false, imp: Math.abs(toL(r, (fcSum - planSum) / H)), sev: 'low', msg: `Total ${fmtPct(devPlan)} vs plan anterior (${fmt(fcSum)} vs ${fmt(planSum)})` });
     const man = state.manual[r.id];
     return {
       fcSum, fcAvgW, fc3, dev, planSum, devPlan, alerts, risk, fin: fc, baseSum, projSum,
+      act: alerts.some((x) => x.act), imp: alerts.reduce((m, x) => Math.max(m, x.imp || 0), 0),
       fcL: toL(r, fcSum), avgL: toL(r, a.avgN), projL: toL(r, projSum),
       locked: man ? man.reduce((s, v) => s + (v ? 1 : 0), 0) : 0,
       dead: a.sum12 === 0 && fcSum === 0 && planSum === 0 && !proj,
@@ -740,7 +745,7 @@
           err += Math.abs(av - fl); act += av; n++;
         });
       });
-      if (n && act > 0) return { value: Math.max(0, 1 - err / act), label: 'vs snapshot ' + new Date(s.createdAt).toLocaleDateString('es-AR'), real: true };
+      if (n && act > 0) return { value: Math.max(0, 1 - err / act), label: 'Forecast exportado el ' + new Date(s.createdAt).toLocaleDateString('es-AR') + ' contra el consumo real, a nivel cliente × SKU', real: true };
     }
     // Backtest: el promedio de N meses pronostica los últimos 3 meses reales.
     // Nivel fila (cliente × SKU, en litros) y nivel total (suma de la cartera filtrada por mes).
@@ -751,7 +756,7 @@
     });
     const tot = sum(ta) ? Math.max(0, 1 - sum(ta.map((x, j) => Math.abs(x - tp[j]))) / sum(ta)) : null;
     const row = a > 0 ? Math.max(0, 1 - e / a) : null;
-    return { value: tot, row, label: `Backtest 3 meses, total cartera · a nivel cliente × SKU: ${row == null ? '–' : nf0.format(row * 100) + '%'}`, real: false };
+    return { value: tot, row, label: `Backtest de los últimos 3 meses sobre el total de la cartera filtrada. A nivel cliente × SKU da ${row == null ? '–' : nf0.format(row * 100) + '%'} porque la demanda es muy intermitente.`, real: false };
   }
 
   /* ===================================================================
@@ -786,11 +791,12 @@
    * Acción masiva sobre filas y rango de meses. Respeta celdas bloqueadas
    * (excepto bloquear/desbloquear). Devuelve cantidad de celdas modificadas.
    */
-  function massApply(rows, action, from, to, param, onlyEmpty) {
-    pushUndo(rows.map((r) => r.id), 'acción masiva');
+  function massApply(rows, action, from, to, param, onlyEmpty, dry) {
+    // dry = true: solo cuenta las celdas que cambiarían (para confirmar antes de aplicar)
+    if (!dry) pushUndo(rows.map((r) => r.id), 'acción masiva');
     let n = 0;
     rows.forEach((r) => {
-      const fc = state.fc[r.id], man = state.manual[r.id];
+      const fc = dry ? state.fc[r.id].slice() : state.fc[r.id], man = dry ? state.manual[r.id].slice() : state.manual[r.id];
       for (let i = from; i <= to; i++) {
         if (action === 'lock') { if (!man[i]) { man[i] = 1; n++; } continue; }
         if (action === 'unlock') { if (man[i]) { man[i] = 0; n++; } continue; }
@@ -809,9 +815,9 @@
         v = Math.max(0, Math.round(v || 0));
         if (v !== fc[i]) { fc[i] = v; n++; }
       }
-      evalRow(r);
+      if (!dry) evalRow(r);
     });
-    touch();
+    if (!dry) touch();
     return n;
   }
   const lastActualValue = (r) => { for (let i = r.hist.length - 1; i >= 0; i--) if (r.hist[i] != null) return r.hist[i]; return 0; };
@@ -822,7 +828,8 @@
   function matchStatus(r, st) {
     const a = r._a, e = r._e;
     switch (st) {
-      case 'alert': return e.alerts.length > 0;
+      case 'alert': return e.act;
+      case 'alertall': return e.alerts.length > 0;
       case 'up': case 'down': case 'none': case 'interm': case 'flat': return a.status === st;
       case 'spike': return a.spikes.length > 0;
       case 'seasonal': return a.seasonal;
@@ -918,7 +925,7 @@
   }
 
   function updateAlertBadge() {
-    const n = state.rows.reduce((s, r) => s + (r._e && r._e.alerts.some((a) => a.sev !== 'low') ? 1 : 0), 0);
+    const n = state.rows.reduce((s, r) => s + (r._e && r._e.act ? 1 : 0), 0);
     $id('navAlertCount').textContent = nf0.format(n);
     const np = state.projects.filter((p) => p._incl).length;
     $id('navProjCount').textContent = np; $id('navProjCount').hidden = !np;
@@ -958,16 +965,22 @@
       if (a.avgN > 0 || e.fcSum > 0) active++;
     });
     const acc = accuracy(rows);
+    // 4 KPIs principales (lo que guía el mes) + una línea secundaria compacta
+    let actRows = 0, infoRows = 0; rows.forEach((r) => { if (r._e.act) actRows++; else if (r._e.alerts.length) infoRows++; });
     $id('kpis').innerHTML = [
       kpi(`Forecast ${mLabel(M.fcMonths[0])}`, fmt(next) + ' ' + uL, `<span class="${pctClass(next / avgL - 1)}">${fmtPct(avgL ? next / avgL - 1 : null)}</span> vs promedio ${S.window} meses`),
-      kpi(`Forecast ${H} meses`, fmt(horizon) + ' ' + uL, planHas ? `<span class="${pctClass(horizon / plan - 1)}">${fmtPct(plan ? horizon / plan - 1 : null)}</span> vs plan anterior (${fmt(plan)})` : 'sin plan anterior en el archivo', 'k-sky'),
-      kpi(`Promedio ${S.window} meses`, fmt(avgL) + ' ' + uL + '/mes', `Último real ${mLabel(M.lastActual)}: ${fmt(sum(rows.map((r) => toL(r, r.hist.at(-1) || 0))))} ${uL}`, 'k-purple'),
-      kpi(`Proyectos VULOPPS ≥${S.projThreshold}%`, (projH >= 0 ? '+' : '') + fmt(projH) + ' ' + uL, `${nf0.format(projRows)} productos con proyecto · ${horizon ? nf0.format((projH / horizon) * 100) : 0}% del forecast`, 'k-violet'),
-      kpi('Forecast accuracy', acc.value == null ? '–' : nf0.format(acc.value * 100) + '%', acc.label, 'k-sky'),
-      kpi('Alertas a revisar', nf0.format(alertsMain), `${nf0.format(alertsHigh)} de severidad alta · ${nf0.format(alerts - alertsMain)} solo informativas`, 'k-fuchsia'),
-      kpi('Riesgo de quiebre', nf0.format(risk), `${nf0.format(riskHigh)} con cartera > forecast`, 'k-violet'),
-      kpi('Sin movimiento', nf0.format(none), `de ${nf0.format(rows.length)} combinaciones (${nf0.format(active)} activas)`, 'k-gray'),
-      kpi('Valores manuales', nf0.format(lockedCells), `celdas bloqueadas en ${nf0.format(lockedRows)} filas`),
+      kpi(`Forecast ${H} meses`, fmt(horizon) + ' ' + uL, planHas ? `<span class="${pctClass(horizon / plan - 1)}">${fmtPct(plan ? horizon / plan - 1 : null)}</span> vs plan anterior (${fmt(plan)} ${uL})` : 'sin plan anterior en el archivo'),
+      kpi('Riesgo de quiebre', nf0.format(risk), risk ? `${nf0.format(riskHigh)} con cartera mayor al forecast` : 'Sin riesgos detectados', risk ? 'k-alert' : ''),
+      kpi('Alertas accionables', nf0.format(actRows), `${nf0.format(infoRows)} filas más con alertas solo informativas`, actRows ? 'k-alert' : ''),
+    ].join('');
+    const sec = (label, value, title) => `<div class="kpi-sec"${title ? ` title="${esc(title)}"` : ''}><span>${label}</span><b>${value}</b></div>`;
+    $id('kpisSec').innerHTML = [
+      sec(`Promedio ${S.window} meses`, fmt(avgL) + ' ' + uL + '/mes'),
+      sec(`Real ${mLabel(M.lastActual)}`, fmt(sum(rows.map((r) => toL(r, r.hist.at(-1) || 0)))) + ' ' + uL),
+      sec(acc.real ? 'Accuracy vs snapshot' : 'Accuracy total cartera', acc.value == null ? '–' : nf0.format(acc.value * 100) + '%', acc.label),
+      state.projects.length ? sec(`Proyectos ≥${S.projThreshold}%`, (projH >= 0 ? '+' : '') + fmt(projH) + ' ' + uL, `${projRows} productos con proyecto`) : '',
+      sec('Sin movimiento', nf0.format(none) + ' de ' + nf0.format(rows.length)),
+      sec('Celdas editadas', nf0.format(lockedCells) + (lockedRows ? ` en ${nf0.format(lockedRows)} filas` : '')),
     ].join('');
     $id('trendUnitNote').textContent = `en ${uL === 'L' ? 'litros' : uL} · historia de ${Math.min(12, M.histMonths.length)} meses + horizonte de forecast`;
 
@@ -983,13 +996,13 @@
     const avgLine = labels.map(() => avgL);
     const ds = [
       { type: 'bar', label: 'Real', data: [...real, ...M.fcMonths.map(() => null)], backgroundColor: BRAND.navy, borderRadius: 3, order: 3 },
-      { type: 'bar', label: 'Forecast base', data: [...pad, ...fcT], backgroundColor: BRAND.sky, borderRadius: 3, order: 3, stack: 'f' },
+      { type: 'bar', label: 'Forecast', data: [...pad, ...fcT], backgroundColor: BRAND.sky, borderRadius: 3, order: 3, stack: 'f' },
     ];
     if (projT.some((v) => v)) ds.push({ type: 'bar', label: `Proyectos ≥${S.projThreshold}%`, data: [...pad, ...projT], backgroundColor: BRAND.violet, borderRadius: 3, order: 3, stack: 'f' });
     ds[0].stack = 'r';
     if (M.hasPlan) ds.push({ type: 'line', label: 'Plan anterior (DMR)', data: [...pad, ...planT], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 2, borderWidth: 2, order: 1 });
     if (M.hasStat) ds.push({ type: 'line', label: 'Estadístico', data: [...pad, ...statT], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 2, order: 1 });
-    ds.push({ type: 'line', label: `Promedio ${S.window}m`, data: avgLine, borderColor: BRAND.fuchsia, borderWidth: 1.5, pointRadius: 0, order: 0 });
+    ds.push({ type: 'line', label: `Promedio ${S.window}m`, data: avgLine, borderColor: BRAND.ultra, borderWidth: 1.5, pointRadius: 0, order: 0 });
     const trendOpts = baseOpts({ tooltipUnit: uL }); trendOpts.scales.x.stacked = true; trendOpts.scales.y.stacked = false;
     chart('chTrend', { data: { labels, datasets: ds }, options: trendOpts });
 
@@ -1007,7 +1020,7 @@
     });
 
     // Variaciones por grupo (forecast promedio vs promedio histórico)
-    const grp = [...groupBy(rows, (r) => r.group).entries()].map(([k, rs]) => {
+    const grp = [...groupBy(rows.filter((r) => !/^\((sin grupo|proyecto)\)$/.test(r.group)), (r) => r.group).entries()].map(([k, rs]) => {
       const avg = sum(rs.map((r) => r._e.avgL)), f = sum(rs.map((r) => toL(r, r._e.fcAvgW)));
       return { k, diff: f - avg, pct: avg ? f / avg - 1 : null };
     }).filter((g) => Math.abs(g.diff) > 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 10);
@@ -1017,22 +1030,25 @@
       options: { ...baseOpts({ tooltipUnit: uL, horizontal: true }), plugins: { legend: { display: false }, tooltip: tooltipOpts(uL, (i) => 'Variación: ' + fmtPct(grp[i].pct)) }, onClick: (_, el) => { if (el[0]) goFiltered({ group: grp[el[0].index].k }); } },
     });
 
-    // Alertas por tipo
-    const at = {}; rows.forEach((r) => r._e.alerts.forEach((x) => (at[x.t] = (at[x.t] || 0) + 1)));
-    const atK = Object.keys(at);
+    // Alertas por tipo: barras (fucsia = accionable, navy claro = informativa)
+    const ACT_TYPES = ['RISK', 'NOFC', 'NOHIST'];
+    const at = {}; rows.forEach((r) => new Set(r._e.alerts.map((x) => x.t)).forEach((t) => (at[t] = (at[t] || 0) + 1)));
+    const atK = Object.keys(at).sort((a, b) => (ACT_TYPES.includes(b) - ACT_TYPES.includes(a)) || at[b] - at[a]);
+    const barOpts = (onClick) => ({ ...baseOpts({ tooltipUnit: 'filas', horizontal: true }), plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${nf0.format(c.parsed.x)} filas` } } }, onClick });
     chart('chAlerts', {
-      type: 'doughnut',
-      data: { labels: atK.map((k) => ALERT_TYPES[k]), datasets: [{ data: atK.map((k) => at[k]), backgroundColor: [BRAND.fuchsia, BRAND.violet, BRAND.purple, BRAND.sky, BRAND.navy, BRAND.grayL], borderWidth: 1 }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, onClick: () => showView('alerts') },
+      type: 'bar',
+      data: { labels: atK.map((k) => ALERT_TYPES[k] + (ACT_TYPES.includes(k) ? '' : ' (info)')), datasets: [{ data: atK.map((k) => at[k]), backgroundColor: atK.map((k) => (ACT_TYPES.includes(k) ? BRAND.fuchsia : BRAND.navyL)), borderRadius: 3 }] },
+      options: barOpts(() => showView('alerts')),
     });
 
-    // Estado de productos
+    // Estado de productos: barras ordenadas (sky = alza, fucsia = baja, neutros para el resto)
     const st = { up: 0, flat: 0, down: 0, interm: 0, none: 0 }; rows.forEach((r) => st[r._a.status]++);
-    const stK = ['up', 'flat', 'down', 'interm', 'none'];
+    const stK = ['up', 'flat', 'down', 'interm', 'none'], stL = { up: 'En alza', flat: 'Estable', down: 'En baja', interm: 'Intermitente', none: 'Sin movimiento' };
+    const stC = { up: BRAND.sky, flat: BRAND.navy, down: BRAND.fuchsia, interm: BRAND.navyL, none: BRAND.grayL };
     chart('chStatus', {
-      type: 'doughnut',
-      data: { labels: ['En alza', 'Estable', 'En baja', 'Intermitente', 'Sin movimiento'], datasets: [{ data: stK.map((k) => st[k]), backgroundColor: [BRAND.sky, BRAND.navyL, BRAND.fuchsia, BRAND.purpleL, BRAND.grayL], borderWidth: 1 }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, onClick: (_, el) => { if (el[0]) goFiltered({ status: stK[el[0].index], hideDead: stK[el[0].index] !== 'none' }); } },
+      type: 'bar',
+      data: { labels: stK.map((k) => stL[k]), datasets: [{ data: stK.map((k) => st[k]), backgroundColor: stK.map((k) => stC[k]), borderRadius: 3 }] },
+      options: barOpts((_, el) => { if (el[0]) goFiltered({ status: stK[el[0].index], hideDead: stK[el[0].index] !== 'none' }); }),
     });
   }
 
@@ -1088,10 +1104,12 @@
     cols.push({ title: '', data: null, orderable: false, className: 'stk c-edit', render: (r) => `<button class="ico-btn" data-fmrow="${esc(r.id)}" title="Ingresar forecast con la curva histórica (pop-up)">✎</button>` });
     cols.push({ title: 'Cliente', data: 'client', className: 'stk c-cli', render: (v, t) => (t === 'display' ? `<span class="cli-name" title="${esc(v)}">${esc(v.replace(/^M&P ARG /, ''))}</span>` : v) });
     cols.push({ title: 'SKU', data: 'sku', className: 'stk c-sku' });
-    cols.push({ title: 'Descripción', data: 'desc', className: 'desc', render: (v, t, r) => (t === 'display' ? `<a class="lnk" data-detail="${esc(r.id)}" title="${esc(v)}">${esc(v)}</a>` : v) });
-    cols.push({ title: 'Grupo', data: 'group' });
-    cols.push({ title: 'KAM', data: 'kam' });
-    if (M.hasPac) cols.push({ title: 'PAC', data: 'pac', className: 'num', render: (v) => (v ? fmt1(v) : '–') });
+    cols.push({ title: 'Descripción', data: 'desc', className: 'stk c-desc desc', render: (v, t, r) => (t === 'display' ? `<a class="lnk" data-detail="${esc(r.id)}" title="${esc(v)}">${esc(v)}</a>` : v) });
+    if (S.showMeta) {
+      cols.push({ title: 'Grupo', data: 'group' });
+      cols.push({ title: 'KAM', data: 'kam' });
+      if (M.hasPac) cols.push({ title: 'PAC', data: 'pac', className: 'num', render: (v) => (v ? fmt1(v) : '–') });
+    }
     for (let j = 0; j < hv; j++) {
       const i = hOff + j, k = M.histMonths[i];
       cols.push({
@@ -1112,7 +1130,6 @@
       if (r._a.status === 'interm') return `<span class="muted" title="Demanda intermitente: tendencia poco confiable">${fmtPct(p)}</span>`;
       return `<span class="${pctClass(p)}" title="Variación ajustada en ${S.window} meses">${p > 0.05 ? '▲' : p < -0.05 ? '▼' : '▬'} ${fmtPct(p)}</span>`;
     }, _calc: true });
-    cols.push({ title: 'Estado', data: null, orderable: false, render: (r, t) => (t === 'display' ? statusBadges(r) : r._a.status), _calc: true });
     M.fcMonths.forEach((k, i) => {
       cols.push({
         title: mLabel(k), data: null, className: 'num fc fcm' + (i === 0 ? ' sep' : ''), orderSequence: ['desc', 'asc'], _fc: i,
@@ -1138,7 +1155,8 @@
       const d = r._e.devPlan; if (t !== 'display') return d == null ? -999 : d;
       return `<span class="${pctClass(d)}">${fmtPct(d)}</span>`;
     }, _calc: true });
-    cols.push({ title: 'Alertas', data: null, orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? alertBadge(r) : r._e.alerts.length * 10 + (r._e.risk ? 5 : 0)), _calc: true });
+    cols.push({ title: 'Alertas', data: null, orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? alertBadge(r) : (r._e.act ? 1e9 : 0) + r._e.imp), _calc: true });
+    cols.push({ title: 'Estado', data: null, orderable: false, render: (r, t) => (t === 'display' ? statusBadges(r) : r._a.status), _calc: true });
     return cols;
   }
 
@@ -1157,7 +1175,7 @@
         language: dtLang(),
         dom: 'rtip<"dt-bottom"l>',
       });
-      fillMonthSelectors();
+      fillMonthSelectors(); syncGridPrefs();
     } else {
       grid.clear(); grid.rows.add(rows); grid.draw(false);
     }
@@ -1178,6 +1196,10 @@
     };
   }
 
+  function syncGridPrefs() {
+    const hv = [0, 3, 6, 12].includes(+state.settings.histVisible) ? +state.settings.histVisible : 3;
+    $id('gHist').value = hv; $id('gMeta').checked = !!state.settings.showMeta;
+  }
   function fillMonthSelectors() {
     const o = state.meta.fcMonths.map((k, i) => `<option value="${i}">${mLabel(k)}</option>`).join('');
     $id('mFrom').innerHTML = o; $id('mTo').innerHTML = o;
@@ -1243,9 +1265,9 @@
     const u = M.unit === 'pz' ? 'L' : M.unit;
     $id('monthKpis').innerHTML = [
       kpi('Forecast ' + mLabel(k), fmt(fcT) + ' ' + u, ''),
-      kpi('vs promedio', `<span class="${pctClass(fcT / avgT - 1)}">${fmtPct(avgT ? fcT / avgT - 1 : null)}</span>`, fmt(avgT) + ' ' + u, 'k-purple'),
-      M.hasPlan ? kpi('vs plan anterior', `<span class="${pctClass(fcT / planT - 1)}">${fmtPct(planT ? fcT / planT - 1 : null)}</span>`, fmt(planT) + ' ' + u, 'k-sky') : '',
-      lyT != null ? kpi('vs mismo mes año ant.', `<span class="${pctClass(fcT / lyT - 1)}">${fmtPct(lyT ? fcT / lyT - 1 : null)}</span>`, fmt(lyT) + ' ' + u, 'k-gray') : '',
+      kpi('vs promedio', `<span class="${pctClass(fcT / avgT - 1)}">${fmtPct(avgT ? fcT / avgT - 1 : null)}</span>`, fmt(avgT) + ' ' + u),
+      M.hasPlan ? kpi('vs plan anterior', `<span class="${pctClass(fcT / planT - 1)}">${fmtPct(planT ? fcT / planT - 1 : null)}</span>`, fmt(planT) + ' ' + u) : '',
+      lyT != null ? kpi('vs mismo mes año ant.', `<span class="${pctClass(fcT / lyT - 1)}">${fmtPct(lyT ? fcT / lyT - 1 : null)}</span>`, fmt(lyT) + ' ' + u) : '',
     ].join('');
   }
   function refreshMonthRow(id) {
@@ -1326,18 +1348,20 @@
     return out;
   }
   function renderAlerts(rows) {
-    const data = allAlerts(rows);
+    const onlyAct = $id('alScope').value !== 'all';
+    const data = allAlerts(rows).filter((a) => !onlyAct || a.act);
     const cols = [
+      { title: 'Tipo de alerta', data: 'act', render: (v, t) => (t === 'display' ? (v ? '<span class="badge b-high">Accionable</span>' : '<span class="badge b-low">Informativa</span>') : (v ? 1 : 0)) },
       { title: 'Severidad', data: 'sev', render: (v, t) => (t === 'display' ? `<span class="badge ${SEV[v][1]}">${SEV[v][0]}</span>` : SEV[v][2]) },
       { title: 'Tipo', data: 't', render: (v) => ALERT_TYPES[v] },
       { title: 'Cliente', data: 'r.client' },
       { title: 'SKU', data: 'r.sku' },
       { title: 'Descripción', data: 'r.desc', className: 'desc', render: (v, t, a) => (t === 'display' ? `<a class="lnk" data-detail="${esc(a.r.id)}">${esc(v)}</a>` : v) },
       { title: 'Detalle', data: 'msg' },
-      { title: 'Volumen (L/mes)', data: null, className: 'num', render: (a, t) => (t === 'display' ? fmt(Math.max(a.r._e.avgL, toL(a.r, a.r._e.fcAvgW))) : Math.max(a.r._e.avgL, toL(a.r, a.r._e.fcAvgW))) },
+      { title: 'Impacto (L/mes)', data: 'imp', className: 'num', orderSequence: ['desc', 'asc'], render: (v, t) => (t === 'display' ? `<b>${fmt(v)}</b>` : v || 0) },
     ];
     if (alertTbl) { alertTbl.destroy(); $('#tblAlerts').empty(); }
-    alertTbl = $('#tblAlerts').DataTable({ data, columns: cols, deferRender: true, pageLength: 50, order: [[0, 'desc'], [6, 'desc']], language: dtLang(), dom: 'rtip<"dt-bottom"l>' });
+    alertTbl = $('#tblAlerts').DataTable({ data, columns: cols, deferRender: true, pageLength: 50, order: [[7, 'desc']], language: { ...dtLang(), emptyTable: onlyAct ? 'No hay alertas accionables con estos filtros 👍' : 'Sin alertas' }, dom: 'rtip<"dt-bottom"l>' });
   }
 
   /* ---------- 7.6 Detalle de producto (drawer) ---------- */
@@ -1548,11 +1572,15 @@
     let base = rows.filter((r) => w.get(r.id) > 0);
     if (!base.length) { base = rows; base.forEach((r) => w.set(r.id, 1)); }
     const out = new Map(base.map((r) => [r.id, new Array(H).fill(0)]));
+    // productos del alcance que no entran en el reparto (sin consumo reciente o sin PAC): su valor actual
+    // se mantiene, así que se descuenta del total pedido para que el cliente cierre exactamente
+    const outside = modal.rows.filter((r) => !base.includes(r));
     for (let i = 0; i < H; i++) {
       const locked = respect ? base.filter((r) => state.manual[r.id][i]) : [];
       const lockedL = sum(locked.map((r) => toL(r, state.fc[r.id][i])));
+      const outsideL = sum(outside.map((r) => toL(r, state.fc[r.id][i])));
       const free = base.filter((r) => !locked.includes(r));
-      const tw = sum(free.map((r) => w.get(r.id))), rem = Math.max(0, modal.values[i] - lockedL);
+      const tw = sum(free.map((r) => w.get(r.id))), rem = Math.max(0, modal.values[i] - lockedL - outsideL);
       free.forEach((r) => { out.get(r.id)[i] = tw ? (rem * w.get(r.id)) / tw / (conv ? r.pac : 1) : 0; });
       locked.forEach((r) => { out.get(r.id)[i] = null; }); // null = no tocar
     }
@@ -1568,7 +1596,7 @@
     if (modal.mode !== 'client') return;
     const { w, base, skipped } = distribute(), tw = sum(base.map((r) => w.get(r.id)));
     const top = base.slice().sort((a, b) => w.get(b.id) - w.get(a.id)).slice(0, 8);
-    $id('fmDist').innerHTML = `<p class="muted small">El total de cada mes se reparte entre <b>${base.length}</b> productos según su peso en los últimos ${modal.window} meses${skipped ? ` · ${skipped} productos sin consumo${state.meta.unit === 'pz' ? ' o sin PAC' : ''} quedan como están` : ''}.</p>`
+    $id('fmDist').innerHTML = `<p class="muted small">El total de cada mes se reparte entre <b>${base.length}</b> productos según su peso en los últimos ${modal.window} meses${skipped ? ` · ${skipped} productos sin consumo reciente${state.meta.unit === 'pz' ? ' o sin PAC' : ''} conservan su valor actual, que se descuenta del total` : ''}.</p>`
       + '<table class="fm-table small"><thead><tr><th>Producto</th><th class="num">Mix</th></tr></thead><tbody>'
       + top.map((r) => `<tr><td>${esc(r.desc)}</td><td class="num">${tw ? nf1.format((w.get(r.id) / tw) * 100) + '%' : '–'}</td></tr>`).join('')
       + (base.length > top.length ? `<tr><td class="muted">+ ${base.length - top.length} productos más</td><td></td></tr>` : '') + '</tbody></table>';
@@ -1651,9 +1679,9 @@
     const tot = (arr, t) => sum(arr.filter((p) => !t || p.type === t).map((p) => sum(Object.values(p.liters))));
     $id('pjKpis').innerHTML = [
       kpi('Incluidos en el forecast', nf0.format(inc.length), `de ${nf0.format(P.length)} proyectos · probabilidad ≥ ${S.projThreshold}%`),
-      kpi('Oportunidades incluidas', '+' + fmt(tot(inc, 'OPP')) + ' L', `${inc.filter((p) => p.type === 'OPP').length} OPP`, 'k-violet'),
-      kpi('Vulnerabilidades incluidas', '−' + fmt(tot(inc, 'VUL')) + ' L', `${inc.filter((p) => p.type === 'VUL').length} VUL`, 'k-fuchsia'),
-      kpi('Fuera por probabilidad', nf0.format(P.length - inc.length), fmt(tot(P.filter((p) => !p._incl))) + ' L no considerados', 'k-gray'),
+      kpi('Oportunidades incluidas', '+' + fmt(tot(inc, 'OPP')) + ' L', `${inc.filter((p) => p.type === 'OPP').length} OPP`),
+      kpi('Vulnerabilidades incluidas', '−' + fmt(tot(inc, 'VUL')) + ' L', `${inc.filter((p) => p.type === 'VUL').length} VUL`),
+      kpi('Fuera por probabilidad', nf0.format(P.length - inc.length), fmt(tot(P.filter((p) => !p._incl))) + ' L no considerados'),
     ].join('');
     const span = (p) => { const ks = Object.keys(p.liters).filter((k) => p.liters[k]).sort(); return ks.length ? mLabel(ks[0]) + (ks.length > 1 ? ' → ' + mLabel(ks.at(-1)) : '') : '–'; };
     const cols = [
@@ -1835,10 +1863,10 @@
     XLSX.utils.book_append_sheet(wb, buildSheet('Resumen por cliente (litros)', h3, d3, f3, [26, 14, 12, 13, ...ml.map(() => 11), 12, 13, 11, 11, 10], stamp), 'Resumen por Cliente');
 
     // 4) Alertas
-    const al = allAlerts(rows).sort((a, b) => SEV[b.sev][2] - SEV[a.sev][2] || b.r._e.avgL - a.r._e.avgL);
-    const h4 = ['Severidad', 'Tipo', 'Cliente', 'KAM', 'SKU', 'Descripción', 'Detalle', `Prom ${S.window}m (${U})`, `Forecast total (${U})`];
-    const d4 = al.map((a) => [SEV[a.sev][0], ALERT_TYPES[a.t], a.r.client, a.r.kam, isNaN(+a.r.sku) ? a.r.sku : +a.r.sku, a.r.desc, a.msg, a.r._a.avgN, a.r._e.fcSum]);
-    XLSX.utils.book_append_sheet(wb, buildSheet('Alertas', h4, d4, [null, null, null, null, null, null, null, F_DEC, F_INT], [10, 28, 24, 10, 10, 44, 70, 12, 14], stamp), 'Alertas');
+    const al = allAlerts(rows).sort((a, b) => (b.act - a.act) || (b.imp || 0) - (a.imp || 0));
+    const h4 = ['Accionable', 'Impacto (L/mes)', 'Severidad', 'Tipo', 'Cliente', 'KAM', 'SKU', 'Descripción', 'Detalle', `Prom ${S.window}m (${U})`, `Forecast total (${U})`];
+    const d4 = al.map((a) => [a.act ? 'Sí' : 'No', a.imp || 0, SEV[a.sev][0], ALERT_TYPES[a.t], a.r.client, a.r.kam, isNaN(+a.r.sku) ? a.r.sku : +a.r.sku, a.r.desc, a.msg, a.r._a.avgN, a.r._e.fcSum]);
+    XLSX.utils.book_append_sheet(wb, buildSheet('Alertas', h4, d4, [null, F_INT, null, null, null, null, null, null, null, F_DEC, F_INT], [11, 14, 10, 28, 24, 10, 10, 44, 70, 12, 14], stamp), 'Alertas');
 
     // 5) Proyectos con el formato de la hoja VULOPPS (para pegar en el archivo)
     if (state.projects.length) {
@@ -2219,6 +2247,7 @@
     $id('mAction').addEventListener('change', updateParamField);
     $id('btnApply').addEventListener('click', () => {
       const action = $id('mAction').value;
+      if (!action) { toast('Elegí primero una acción', true); return; }
       let from = +$id('mFrom').value, to = +$id('mTo').value; if (from > to) [from, to] = [to, from];
       const scope = $id('mScope').value;
       const rows = scope === 'selected' ? state.rows.filter((r) => state.selected.has(r.id)) : filteredRows();
@@ -2239,15 +2268,25 @@
         toast(action === 'restorehist' ? `${n} meses vuelven a contar en la estadística` : `${n} meses marcados como proyecto. Los promedios se recalcularon: usá “Completar con sugerido” para actualizar el forecast base.`);
         return;
       }
-      if (rows.length > 200 && !confirm(`La acción se aplicará a ${nf0.format(rows.length)} filas (meses ${mLabel(state.meta.fcMonths[from])} a ${mLabel(state.meta.fcMonths[to])}). ¿Continuar?`)) return;
-      const n = massApply(rows, action, from, to, param, $id('mOnlyEmpty').checked);
+      const onlyEmpty = $id('mOnlyEmpty').checked;
+      const will = massApply(rows, action, from, to, param, onlyEmpty, true);
+      if (!will) { toast('No hay celdas para cambiar con esa acción (las bloqueadas no se tocan)'); return; }
+      const actName = $id('mAction').selectedOptions[0].textContent;
+      if (!confirm(`${actName}\n\nSe van a modificar ${nf0.format(will)} celdas en ${nf0.format(rows.length)} filas (${mLabel(state.meta.fcMonths[from])} a ${mLabel(state.meta.fcMonths[to])}).\nLas celdas bloqueadas no se tocan y podés deshacer con Ctrl+Z.\n\n¿Aplicar?`)) return;
+      const n = massApply(rows, action, from, to, param, onlyEmpty);
       refreshGrid();
       toast(`${nf0.format(n)} celdas actualizadas en ${nf0.format(rows.length)} filas` + (['lock', 'unlock'].includes(action) ? '' : ' (las bloqueadas no se tocan)'));
     });
     $id('btnUndo').addEventListener('click', undo);
+    const gridPref = () => {
+      state.settings.histVisible = +$id('gHist').value; state.settings.showMeta = $id('gMeta').checked;
+      saveSession(); if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; } state.dirty.add('grid'); renderView();
+    };
+    $id('gHist').addEventListener('change', gridPref); $id('gMeta').addEventListener('change', gridPref);
     document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.target.matches('input, textarea')) { e.preventDefault(); undo(); } });
 
     // vista mensual
+    $id('alScope').addEventListener('change', () => { state.dirty.add('alerts'); renderView(); });
     $id('monthSel').addEventListener('change', () => { state.dirty.add('monthly'); renderView(); });
 
     // drawer
@@ -2295,6 +2334,7 @@
 
   function updateParamField() {
     const a = $id('mAction').value;
+    $id('btnApply').disabled = !a;
     $id('mParamWrap').hidden = !(a === 'pct' || a === 'value');
     $id('mFrom').disabled = $id('mTo').disabled = $id('mOnlyEmpty').disabled = a === 'cleanspikes' || a === 'restorehist';
     $id('mParamLabel').textContent = a === 'pct' ? '% (ej. 10 o -15)' : 'Valor';

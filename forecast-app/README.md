@@ -104,7 +104,7 @@ La detección es automática: busca la fila de encabezados por nombre de columna
 | Sin movimiento | Consumo 0 en toda la ventana. |
 | Estacionalidad básica | Correlación ≥ 0,6 con el mismo mes del año anterior (con al menos 6 pares de meses) y coeficiente de variación ≥ 0,3. |
 | Picos anormales | Solo en consumidores regulares (≥ 6 meses con consumo de 12): valor > 3× el promedio del resto y > promedio + 3 desvíos. |
-| Alertas | **Desvío vs histórico** (forecast promedio vs promedio N meses > umbral, 50% por defecto) · **Forecast sin consumo reciente** · **Consumo sin forecast** (próximos 3 meses en 0) · **Pico anormal** · **Riesgo de quiebre** · **Cambio fuerte vs plan anterior**. |
+| Alertas | Se separan en **accionables** (riesgo de quiebre, consumo sin forecast, forecast sin consumo reciente) e **informativas** (desvío vs histórico, picos, cambio fuerte vs plan), y se ordenan por **impacto en litros/mes**. El badge del menú y el KPI cuentan solo las accionables. Tipos: **Desvío vs histórico** (forecast promedio vs promedio N meses > umbral, 50% por defecto) · **Forecast sin consumo reciente** · **Consumo sin forecast** (próximos 3 meses en 0) · **Pico anormal** · **Riesgo de quiebre** · **Cambio fuerte vs plan anterior**. |
 | Riesgo de quiebre | **Alto** si la cartera de un mes supera el forecast de ese mes. **Medio** si el forecast del primer mes es menor al 60% del consumo de los últimos 3 meses (solo en filas no intermitentes). |
 | Forecast accuracy | Con snapshot: 1 − WAPE del forecast exportado contra el real, a nivel cliente × SKU y en litros. Sin snapshot: backtest del promedio sobre los últimos 3 meses reales, a nivel total de cartera, con el valor a nivel cliente × SKU como referencia. |
 

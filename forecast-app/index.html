@@ -28,9 +28,9 @@
     </nav>
     <div class="sidebar-foot">
       <div class="file-info" id="fileInfo">Sin archivo cargado</div>
-      <button class="btn btn-light btn-block" id="btnLoad">Cargar archivo Excel</button>
-      <button class="btn btn-sky btn-block" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
-      <button class="btn btn-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
+      <button class="btn btn-outline-light btn-block" id="btnLoad">Cargar archivo Excel</button>
+      <button class="btn btn-light btn-block btn-strong" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
+      <button class="btn btn-outline-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
       <div class="save-state" id="saveState"></div>
     </div>
   </aside>
@@ -57,7 +57,8 @@
       <div class="f-field"><label>Estado</label>
         <select id="fStatus">
           <option value="">Todos</option>
-          <option value="alert">Con alertas</option>
+          <option value="alert">Con alertas accionables</option>
+          <option value="alertall">Con alertas (todas)</option>
           <option value="up">En alza</option>
           <option value="down">En baja</option>
           <option value="flat">Estables</option>
@@ -89,7 +90,8 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
-      <div class="kpis" id="kpis"></div>
+      <div class="kpis kpis-main" id="kpis"></div>
+      <div class="kpis-sec-row" id="kpisSec"></div>
       <div class="grid-2">
         <div class="card card-wide">
           <div class="section-bar">Evolución mensual <span class="bar-note" id="trendUnitNote"></span></div>
@@ -133,6 +135,7 @@
           <div class="tb-group">
             <label>Acción</label>
             <select id="mAction">
+              <option value="" selected>Elegí una acción…</option>
               <option value="suggested">Completar con sugerido</option>
               <option value="plan">Copiar plan anterior (DMR)</option>
               <option value="stat">Copiar estadístico del sistema</option>
@@ -153,8 +156,12 @@
           <label class="f-check"><input type="checkbox" id="mOnlyEmpty"> Solo celdas en 0</label>
           <button class="btn btn-primary" id="btnApply">Aplicar</button>
           <button class="btn btn-ghost" id="btnUndo" disabled>↶ Deshacer</button>
-          <button class="btn btn-sky" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
+          <button class="btn btn-primary" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
           <div class="tb-spacer"></div>
+          <div class="tb-group"><label>Historia visible</label>
+            <select id="gHist"><option value="0">Sin historia</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option></select>
+          </div>
+          <label class="f-check"><input type="checkbox" id="gMeta"> Grupo, KAM y PAC</label>
           <div class="legend">
             <span class="lg lg-up">Aumento</span>
             <span class="lg lg-down">Caída</span>
@@ -206,7 +213,13 @@
     <!-- ALERTAS -->
     <section class="view" id="view-alerts">
       <div class="card table-card">
-        <div class="section-bar">Alertas <span class="bar-note">se recalculan en cada edición</span></div>
+        <div class="section-bar">Alertas <span class="bar-note">ordenadas por impacto en litros · se recalculan en cada edición</span></div>
+        <div class="toolbar al-bar">
+          <div class="tb-group"><label>Mostrar</label>
+            <select id="alScope"><option value="act">Accionables (riesgo de quiebre, consumo sin forecast…)</option><option value="all">Todas, incluidas las informativas</option></select>
+          </div>
+          <p class="muted small al-note">Las <b>accionables</b> piden una corrección. Las <b>informativas</b> (desvíos, picos, cambios contra el plan) sirven de contexto.</p>
+        </div>
         <div class="table-scroll"><table id="tblAlerts" class="display compact" style="width:100%"></table></div>
       </div>
     </section>
@@ -290,8 +303,8 @@
     <div class="chart-box"><canvas id="chRow"></canvas></div>
     <div class="dw-metrics" id="dwMetrics"></div>
     <div class="dw-actions">
-      <button class="btn btn-sky" data-rowact="modal">✎ Ingresar forecast (curva)</button>
-      <button class="btn btn-primary" data-rowact="suggested">Aplicar sugerido</button>
+      <button class="btn btn-primary" data-rowact="modal">✎ Ingresar forecast (curva)</button>
+      <button class="btn btn-ghost" data-rowact="suggested">Aplicar sugerido</button>
       <button class="btn btn-ghost" data-rowact="plan">Copiar plan anterior</button>
       <button class="btn btn-ghost" data-rowact="lock">Bloquear fila</button>
       <button class="btn btn-ghost" data-rowact="unlock">Desbloquear fila</button>
