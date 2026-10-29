@@ -7,3 +7,8 @@ build/
 .DS_Store
 coverage/
 .claude/worktrees/
+
+# graphify: rutas locales de la máquina, se regeneran solas
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/cache/hook_sessions/
