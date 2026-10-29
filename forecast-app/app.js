@@ -23,6 +23,7 @@
      1. UTILIDADES
      =================================================================== */
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
@@ -106,7 +107,9 @@
     growthPct: 5,       // % para el método crecimiento
     alertPct: 50,       // umbral de desvío forecast vs promedio
     spikeFactor: 3,     // pico = valor > N × promedio del resto
-    histVisible: 6,     // meses de historia visibles en la grilla
+    histVisible: 3,     // meses de historia visibles en la grilla
+    showMeta: false,    // columnas Grupo / KAM / PAC en la grilla (ocultas por defecto: dejan ver los meses editables)
+    uiV: 2,             // versión de preferencias de interfaz (migra sesiones viejas)
     initFrom: 'plan',   // arrancar del DMR del archivo: al volcar al original solo viajan los cambios hechos a conciencia
     projThreshold: 70,  // % mínimo de probabilidad para que un proyecto VULOPPS entre al forecast
   };
@@ -154,6 +157,7 @@
       state.meta = s.meta; state.rows = s.rows; state.fc = s.fc || {}; state.manual = s.manual || {};
       state.projects = s.projects || []; state.excl = s.excl || {};
       state.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
+      if ((s.settings || {}).uiV !== 2) Object.assign(state.settings, { histVisible: 3, showMeta: false, uiV: 2 });
       return true;
     } catch (e) { return false; }
   }
@@ -686,18 +690,20 @@
     const devPlan = planSum > 0 ? fcSum / planSum - 1 : null;
     const alerts = [];
     const lim = S.alertPct / 100;
-    if (a.avgN > 0 && Math.abs(dev) > lim) alerts.push({ t: 'DEV', sev: Math.abs(dev) > 2 * lim ? 'high' : 'med', msg: `Forecast ${fmtPct(dev)} vs promedio ${S.window}m (${fmt1(fcAvgW)} vs ${fmt1(a.avgN)} ${M.unit}/mes)` });
-    if (a.avgN === 0 && baseSum > 0) alerts.push({ t: 'NOHIST', sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast base ${fmt(baseSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
-    if (a.avgN > 0 && fc3 === 0) alerts.push({ t: 'NOFC', sev: 'high', msg: `Consume ${fmt1(a.avgN)} ${M.unit}/mes y no tiene forecast en los próximos 3 meses` });
-    if (a.spikes.length) alerts.push({ t: 'SPIKE', sev: 'low', msg: 'Pico en ' + a.spikes.map(mLabel).join(', ') + ' (distorsiona el promedio)' });
+    // act = accionable (hay que hacer algo); imp = impacto en litros/mes para ordenar
+    if (a.avgN > 0 && Math.abs(dev) > lim) alerts.push({ t: 'DEV', act: false, imp: Math.abs(toL(r, fcAvgW - a.avgN)), sev: Math.abs(dev) > 2 * lim ? 'high' : 'med', msg: `Forecast ${fmtPct(dev)} vs promedio ${S.window}m (${fmt1(fcAvgW)} vs ${fmt1(a.avgN)} ${M.unit}/mes)` });
+    if (a.avgN === 0 && baseSum > 0) alerts.push({ t: 'NOHIST', act: !/npi/i.test(r.cls), imp: toL(r, baseSum / H), sev: /npi/i.test(r.cls) ? 'low' : 'med', msg: `Sin consumo en ${S.window} meses pero con forecast base ${fmt(baseSum)} ${M.unit}` + (/npi/i.test(r.cls) ? ' (NPI)' : '') });
+    if (a.avgN > 0 && fc3 === 0) alerts.push({ t: 'NOFC', act: true, imp: toL(r, a.avgN), sev: 'high', msg: `Consume ${fmt1(a.avgN)} ${M.unit}/mes y no tiene forecast en los próximos 3 meses` });
+    if (a.spikes.length) alerts.push({ t: 'SPIKE', act: false, imp: 0, sev: 'low', msg: 'Pico en ' + a.spikes.map(mLabel).join(', ') + ' (distorsiona el promedio)' });
     let risk = '';
     const cartOver = r.cart.findIndex((c, i) => c > 0 && c > fc[i]);
-    if (cartOver >= 0) { risk = 'high'; alerts.push({ t: 'RISK', sev: 'high', msg: `Cartera ${fmt(r.cart[cartOver])} > forecast ${fmt(fc[cartOver])} en ${mLabel(M.fcMonths[cartOver])}` }); }
-    else if (a.status !== 'interm' && a.avg3 > 0 && fc[0] < 0.6 * a.avg3) { risk = 'med'; alerts.push({ t: 'RISK', sev: 'med', msg: `Forecast de ${mLabel(M.fcMonths[0])} (${fmt(fc[0])}) < 60% del consumo de los últimos 3 meses (${fmt1(a.avg3)})` }); }
-    if (devPlan != null && Math.abs(devPlan) > lim) alerts.push({ t: 'PLAN', sev: 'low', msg: `Total ${fmtPct(devPlan)} vs plan anterior (${fmt(fcSum)} vs ${fmt(planSum)})` });
+    if (cartOver >= 0) { risk = 'high'; alerts.push({ t: 'RISK', act: true, imp: toL(r, r.cart[cartOver] - fc[cartOver]), sev: 'high', msg: `Cartera ${fmt(r.cart[cartOver])} > forecast ${fmt(fc[cartOver])} en ${mLabel(M.fcMonths[cartOver])}` }); }
+    else if (a.status !== 'interm' && a.avg3 > 0 && fc[0] < 0.6 * a.avg3) { risk = 'med'; alerts.push({ t: 'RISK', act: true, imp: toL(r, a.avg3 - fc[0]), sev: 'med', msg: `Forecast de ${mLabel(M.fcMonths[0])} (${fmt(fc[0])}) < 60% del consumo de los últimos 3 meses (${fmt1(a.avg3)})` }); }
+    if (devPlan != null && Math.abs(devPlan) > lim) alerts.push({ t: 'PLAN', act: false, imp: Math.abs(toL(r, (fcSum - planSum) / H)), sev: 'low', msg: `Total ${fmtPct(devPlan)} vs plan anterior (${fmt(fcSum)} vs ${fmt(planSum)})` });
     const man = state.manual[r.id];
     return {
       fcSum, fcAvgW, fc3, dev, planSum, devPlan, alerts, risk, fin: fc, baseSum, projSum,
+      act: alerts.some((x) => x.act), imp: alerts.reduce((m, x) => Math.max(m, x.imp || 0), 0),
       fcL: toL(r, fcSum), avgL: toL(r, a.avgN), projL: toL(r, projSum),
       locked: man ? man.reduce((s, v) => s + (v ? 1 : 0), 0) : 0,
       dead: a.sum12 === 0 && fcSum === 0 && planSum === 0 && !proj,
@@ -740,7 +746,7 @@
           err += Math.abs(av - fl); act += av; n++;
         });
       });
-      if (n && act > 0) return { value: Math.max(0, 1 - err / act), label: 'vs snapshot ' + new Date(s.createdAt).toLocaleDateString('es-AR'), real: true };
+      if (n && act > 0) return { value: Math.max(0, 1 - err / act), label: 'Forecast exportado el ' + new Date(s.createdAt).toLocaleDateString('es-AR') + ' contra el consumo real, a nivel cliente × SKU', real: true };
     }
     // Backtest: el promedio de N meses pronostica los últimos 3 meses reales.
     // Nivel fila (cliente × SKU, en litros) y nivel total (suma de la cartera filtrada por mes).
@@ -751,7 +757,7 @@
     });
     const tot = sum(ta) ? Math.max(0, 1 - sum(ta.map((x, j) => Math.abs(x - tp[j]))) / sum(ta)) : null;
     const row = a > 0 ? Math.max(0, 1 - e / a) : null;
-    return { value: tot, row, label: `Backtest 3 meses, total cartera · a nivel cliente × SKU: ${row == null ? '–' : nf0.format(row * 100) + '%'}`, real: false };
+    return { value: tot, row, label: `Backtest de los últimos 3 meses sobre el total de la cartera filtrada. A nivel cliente × SKU da ${row == null ? '–' : nf0.format(row * 100) + '%'} porque la demanda es muy intermitente.`, real: false };
   }
 
   /* ===================================================================
@@ -786,11 +792,12 @@
    * Acción masiva sobre filas y rango de meses. Respeta celdas bloqueadas
    * (excepto bloquear/desbloquear). Devuelve cantidad de celdas modificadas.
    */
-  function massApply(rows, action, from, to, param, onlyEmpty) {
-    pushUndo(rows.map((r) => r.id), 'acción masiva');
+  function massApply(rows, action, from, to, param, onlyEmpty, dry) {
+    // dry = true: solo cuenta las celdas que cambiarían (para confirmar antes de aplicar)
+    if (!dry) pushUndo(rows.map((r) => r.id), 'acción masiva');
     let n = 0;
     rows.forEach((r) => {
-      const fc = state.fc[r.id], man = state.manual[r.id];
+      const fc = dry ? state.fc[r.id].slice() : state.fc[r.id], man = dry ? state.manual[r.id].slice() : state.manual[r.id];
       for (let i = from; i <= to; i++) {
         if (action === 'lock') { if (!man[i]) { man[i] = 1; n++; } continue; }
         if (action === 'unlock') { if (man[i]) { man[i] = 0; n++; } continue; }
@@ -809,9 +816,9 @@
         v = Math.max(0, Math.round(v || 0));
         if (v !== fc[i]) { fc[i] = v; n++; }
       }
-      evalRow(r);
+      if (!dry) evalRow(r);
     });
-    touch();
+    if (!dry) touch();
     return n;
   }
   const lastActualValue = (r) => { for (let i = r.hist.length - 1; i >= 0; i--) if (r.hist[i] != null) return r.hist[i]; return 0; };
@@ -822,7 +829,8 @@
   function matchStatus(r, st) {
     const a = r._a, e = r._e;
     switch (st) {
-      case 'alert': return e.alerts.length > 0;
+      case 'alert': return e.act;
+      case 'alertall': return e.alerts.length > 0;
       case 'up': case 'down': case 'none': case 'interm': case 'flat': return a.status === st;
       case 'spike': return a.spikes.length > 0;
       case 'seasonal': return a.seasonal;
@@ -876,14 +884,14 @@
      7. VISTAS
      =================================================================== */
   const VIEW_TITLES = {
-    dashboard: ['Dashboard', 'Indicadores y evolución del forecast'],
-    grid: ['Forecast', 'Carga y ajuste del forecast por cliente y producto'],
-    monthly: ['Vista mensual', 'Un mes de forecast contra todas sus referencias'],
-    clients: ['Resumen por cliente', ''],
-    products: ['Resumen por producto', ''],
-    alerts: ['Alertas', 'Diferencias importantes, riesgos y picos'],
+    dashboard: ['Resumen del mes', ''],
+    grid: ['Cargar forecast', 'Editá cada celda o usá las acciones masivas y la previsión por cliente'],
+    monthly: ['Mes por mes', 'Un mes de forecast contra todas sus referencias'],
+    clients: ['Clientes', ''],
+    products: ['Productos', ''],
+    alerts: ['Para revisar', 'Lo que conviene corregir antes de enviar, ordenado por impacto'],
     projects: ['Proyectos', 'Oportunidades y vulnerabilidades (VULOPPS) que se suman al forecast estadístico'],
-    settings: ['Configuración', 'Reglas de cálculo, configuración y datos locales'],
+    settings: ['Ajustes', 'Reglas de cálculo, configuración y datos locales'],
   };
 
   function showView(v) {
@@ -893,7 +901,7 @@
     document.querySelectorAll('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
     const t = VIEW_TITLES[v] || ['Cargar archivo', 'Forecast mensual de consumo'];
     $id('viewTitle').textContent = t[0];
-    $id('viewSubtitle').textContent = t[1] || (state.meta ? `Último mes real: ${mLabel(state.meta.lastActual)} · Horizonte: ${mLabel(state.meta.fcMonths[0])} a ${mLabel(state.meta.fcMonths.at(-1))}` : '');
+    $id('viewSubtitle').textContent = v === 'dashboard' ? '' : t[1] || (state.meta ? `Último mes real: ${mLabel(state.meta.lastActual)} · Horizonte: ${mLabel(state.meta.fcMonths[0])} a ${mLabel(state.meta.fcMonths.at(-1))}` : '');
     $id('filters').hidden = !state.meta || v === 'settings' || v === 'projects';
     $id('btnFilters').hidden = $id('filters').hidden;
     $id('sidebar').classList.remove('open');
@@ -918,7 +926,7 @@
   }
 
   function updateAlertBadge() {
-    const n = state.rows.reduce((s, r) => s + (r._e && r._e.alerts.some((a) => a.sev !== 'low') ? 1 : 0), 0);
+    const n = state.rows.reduce((s, r) => s + (r._e && r._e.act ? 1 : 0), 0);
     $id('navAlertCount').textContent = nf0.format(n);
     const np = state.projects.filter((p) => p._incl).length;
     $id('navProjCount').textContent = np; $id('navProjCount').hidden = !np;
@@ -926,8 +934,9 @@
 
   /* ---------- 7.1 Dashboard ---------- */
   const charts = {};
-  const BRAND = { navy: '#003A70', sky: '#008BC5', purple: '#542C97', ultra: '#000394', fuchsia: '#E0457A', violet: '#A8269A', navyL: '#8CB6D9', skyL: '#A3DDF5', purpleL: '#A290C2', fuchsiaL: '#FFB3D4', grayD: '#868688', grayL: '#B7B9BA' };
-  Chart.defaults.font.family = 'Arial, Helvetica, sans-serif';
+  // Colores del tema "Línea de flotación" (mismos nombres de clave que antes)
+  const BRAND = { navy: '#17324D', sky: '#3E8E8A', purple: '#6F7C88', ultra: '#17324D', fuchsia: '#B33A2B', violet: '#A8741A', navyL: '#C3CCD2', skyL: '#DCEFEC', purpleL: '#9AA6B1', fuchsiaL: '#F2C9C3', grayD: '#6F7C88', grayL: '#B9C1C7', real: '#4C6E8F' };
+  Chart.defaults.font.family = 'Barlow, Arial, sans-serif';
   Chart.defaults.font.size = 11;
   Chart.defaults.color = '#4b5563';
   Chart.defaults.plugins.legend.labels.boxWidth = 12;
@@ -958,56 +967,10 @@
       if (a.avgN > 0 || e.fcSum > 0) active++;
     });
     const acc = accuracy(rows);
-    $id('kpis').innerHTML = [
-      kpi(`Forecast ${mLabel(M.fcMonths[0])}`, fmt(next) + ' ' + uL, `<span class="${pctClass(next / avgL - 1)}">${fmtPct(avgL ? next / avgL - 1 : null)}</span> vs promedio ${S.window} meses`),
-      kpi(`Forecast ${H} meses`, fmt(horizon) + ' ' + uL, planHas ? `<span class="${pctClass(horizon / plan - 1)}">${fmtPct(plan ? horizon / plan - 1 : null)}</span> vs plan anterior (${fmt(plan)})` : 'sin plan anterior en el archivo', 'k-sky'),
-      kpi(`Promedio ${S.window} meses`, fmt(avgL) + ' ' + uL + '/mes', `Último real ${mLabel(M.lastActual)}: ${fmt(sum(rows.map((r) => toL(r, r.hist.at(-1) || 0))))} ${uL}`, 'k-purple'),
-      kpi(`Proyectos VULOPPS ≥${S.projThreshold}%`, (projH >= 0 ? '+' : '') + fmt(projH) + ' ' + uL, `${nf0.format(projRows)} productos con proyecto · ${horizon ? nf0.format((projH / horizon) * 100) : 0}% del forecast`, 'k-violet'),
-      kpi('Forecast accuracy', acc.value == null ? '–' : nf0.format(acc.value * 100) + '%', acc.label, 'k-sky'),
-      kpi('Alertas a revisar', nf0.format(alertsMain), `${nf0.format(alertsHigh)} de severidad alta · ${nf0.format(alerts - alertsMain)} solo informativas`, 'k-fuchsia'),
-      kpi('Riesgo de quiebre', nf0.format(risk), `${nf0.format(riskHigh)} con cartera > forecast`, 'k-violet'),
-      kpi('Sin movimiento', nf0.format(none), `de ${nf0.format(rows.length)} combinaciones (${nf0.format(active)} activas)`, 'k-gray'),
-      kpi('Valores manuales', nf0.format(lockedCells), `celdas bloqueadas en ${nf0.format(lockedRows)} filas`),
-    ].join('');
-    $id('trendUnitNote').textContent = `en ${uL === 'L' ? 'litros' : uL} · historia de ${Math.min(12, M.histMonths.length)} meses + horizonte de forecast`;
-
-    // Evolución mensual: real + forecast + plan + estadístico
-    const hm = M.histMonths.slice(-12), hOff = M.histMonths.length - hm.length;
-    const labels = [...hm, ...M.fcMonths].map(mLabel);
-    const real = hm.map((_, j) => sum(rows.map((r) => toL(r, r.hist[hOff + j] || 0))));
-    const fcT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, state.fc[r.id][i]))));
-    const projT = M.fcMonths.map((_, i) => sum(rows.map((r) => (state.projRow[r.id] ? toL(r, r._e.fin[i] - state.fc[r.id][i]) : 0))));
-    const planT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.plan[i]))));
-    const statT = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.stat[i]))));
-    const pad = hm.map(() => null);
-    const avgLine = labels.map(() => avgL);
-    const ds = [
-      { type: 'bar', label: 'Real', data: [...real, ...M.fcMonths.map(() => null)], backgroundColor: BRAND.navy, borderRadius: 3, order: 3 },
-      { type: 'bar', label: 'Forecast base', data: [...pad, ...fcT], backgroundColor: BRAND.sky, borderRadius: 3, order: 3, stack: 'f' },
-    ];
-    if (projT.some((v) => v)) ds.push({ type: 'bar', label: `Proyectos ≥${S.projThreshold}%`, data: [...pad, ...projT], backgroundColor: BRAND.violet, borderRadius: 3, order: 3, stack: 'f' });
-    ds[0].stack = 'r';
-    if (M.hasPlan) ds.push({ type: 'line', label: 'Plan anterior (DMR)', data: [...pad, ...planT], borderColor: BRAND.purple, borderDash: [6, 4], pointRadius: 2, borderWidth: 2, order: 1 });
-    if (M.hasStat) ds.push({ type: 'line', label: 'Estadístico', data: [...pad, ...statT], borderColor: BRAND.grayD, borderDash: [2, 3], pointRadius: 0, borderWidth: 2, order: 1 });
-    ds.push({ type: 'line', label: `Promedio ${S.window}m`, data: avgLine, borderColor: BRAND.fuchsia, borderWidth: 1.5, pointRadius: 0, order: 0 });
-    const trendOpts = baseOpts({ tooltipUnit: uL }); trendOpts.scales.x.stacked = true; trendOpts.scales.y.stacked = false;
-    chart('chTrend', { data: { labels, datasets: ds }, options: trendOpts });
-
-    // Por cliente: promedio histórico vs forecast promedio 3 meses
-    const byCli = groupBy(rows, (r) => r.client);
-    const cli = [...byCli.entries()].map(([k, rs]) => ({ k, avg: sum(rs.map((r) => r._e.avgL)), fc: sum(rs.map((r) => toL(r, sum(r._e.fin.slice(0, 3))) / 3)) }))
-      .sort((a, b) => b.fc + b.avg - a.fc - a.avg).slice(0, 12);
-    chart('chClients', {
-      type: 'bar',
-      data: { labels: cli.map((c) => c.k.replace(/^M&P ARG /, '')), datasets: [
-        { label: `Promedio ${S.window}m`, data: cli.map((c) => c.avg), backgroundColor: BRAND.navyL, borderRadius: 3 },
-        { label: 'Forecast próx. 3 meses (prom.)', data: cli.map((c) => c.fc), backgroundColor: BRAND.navy, borderRadius: 3 },
-      ] },
-      options: { ...baseOpts({ tooltipUnit: uL, horizontal: true }), onClick: (_, el) => { if (el[0]) goFiltered({ client: cli[el[0].index].k }); } },
-    });
+    renderHull(rows, { next, avgL, horizon, plan, planHas, risk, riskHigh, none, lockedRows, lockedCells, projH, projRows, acc, uL });
 
     // Variaciones por grupo (forecast promedio vs promedio histórico)
-    const grp = [...groupBy(rows, (r) => r.group).entries()].map(([k, rs]) => {
+    const grp = [...groupBy(rows.filter((r) => !/^\((sin grupo|proyecto)\)$/.test(r.group)), (r) => r.group).entries()].map(([k, rs]) => {
       const avg = sum(rs.map((r) => r._e.avgL)), f = sum(rs.map((r) => toL(r, r._e.fcAvgW)));
       return { k, diff: f - avg, pct: avg ? f / avg - 1 : null };
     }).filter((g) => Math.abs(g.diff) > 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 10);
@@ -1017,23 +980,95 @@
       options: { ...baseOpts({ tooltipUnit: uL, horizontal: true }), plugins: { legend: { display: false }, tooltip: tooltipOpts(uL, (i) => 'Variación: ' + fmtPct(grp[i].pct)) }, onClick: (_, el) => { if (el[0]) goFiltered({ group: grp[el[0].index].k }); } },
     });
 
-    // Alertas por tipo
-    const at = {}; rows.forEach((r) => r._e.alerts.forEach((x) => (at[x.t] = (at[x.t] || 0) + 1)));
-    const atK = Object.keys(at);
+    // Alertas por tipo: barras (fucsia = accionable, navy claro = informativa)
+    const ACT_TYPES = ['RISK', 'NOFC', 'NOHIST'];
+    const at = {}; rows.forEach((r) => new Set(r._e.alerts.map((x) => x.t)).forEach((t) => (at[t] = (at[t] || 0) + 1)));
+    const atK = Object.keys(at).sort((a, b) => (ACT_TYPES.includes(b) - ACT_TYPES.includes(a)) || at[b] - at[a]);
+    const barOpts = (onClick) => ({ ...baseOpts({ tooltipUnit: 'filas', horizontal: true }), plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${nf0.format(c.parsed.x)} filas` } } }, onClick });
     chart('chAlerts', {
-      type: 'doughnut',
-      data: { labels: atK.map((k) => ALERT_TYPES[k]), datasets: [{ data: atK.map((k) => at[k]), backgroundColor: [BRAND.fuchsia, BRAND.violet, BRAND.purple, BRAND.sky, BRAND.navy, BRAND.grayL], borderWidth: 1 }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, onClick: () => showView('alerts') },
+      type: 'bar',
+      data: { labels: atK.map((k) => ALERT_TYPES[k] + (ACT_TYPES.includes(k) ? '' : ' (info)')), datasets: [{ data: atK.map((k) => at[k]), backgroundColor: atK.map((k) => (ACT_TYPES.includes(k) ? BRAND.fuchsia : BRAND.navyL)), borderRadius: 3 }] },
+      options: barOpts(() => showView('alerts')),
     });
 
-    // Estado de productos
+    // Estado de productos: barras ordenadas (sky = alza, fucsia = baja, neutros para el resto)
     const st = { up: 0, flat: 0, down: 0, interm: 0, none: 0 }; rows.forEach((r) => st[r._a.status]++);
-    const stK = ['up', 'flat', 'down', 'interm', 'none'];
+    const stK = ['up', 'flat', 'down', 'interm', 'none'], stL = { up: 'En alza', flat: 'Estable', down: 'En baja', interm: 'Intermitente', none: 'Sin movimiento' };
+    const stC = { up: BRAND.sky, flat: BRAND.navy, down: BRAND.fuchsia, interm: BRAND.navyL, none: BRAND.grayL };
     chart('chStatus', {
-      type: 'doughnut',
-      data: { labels: ['En alza', 'Estable', 'En baja', 'Intermitente', 'Sin movimiento'], datasets: [{ data: stK.map((k) => st[k]), backgroundColor: [BRAND.sky, BRAND.navyL, BRAND.fuchsia, BRAND.purpleL, BRAND.grayL], borderWidth: 1 }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, onClick: (_, el) => { if (el[0]) goFiltered({ status: stK[el[0].index], hideDead: stK[el[0].index] !== 'none' }); } },
+      type: 'bar',
+      data: { labels: stK.map((k) => stL[k]), datasets: [{ data: stK.map((k) => st[k]), backgroundColor: stK.map((k) => stC[k]), borderRadius: 3 }] },
+      options: barOpts((_, el) => { if (el[0]) goFiltered({ status: stK[el[0].index], hideDead: stK[el[0].index] !== 'none' }); }),
     });
+  }
+
+  /** Encabezado del dashboard: el casco con la línea de flotación (promedio) y la lista de lo que hay que revisar. */
+  function renderHull(rows, k) {
+    const M = state.meta, S = state.settings;
+    const hm = M.histMonths.slice(-12), hOff = M.histMonths.length - hm.length, nH = hm.length;
+    const real = hm.map((_, j) => sum(rows.map((r) => toL(r, r.hist[hOff + j] || 0))));
+    const fin = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r._e.fin[i]))));
+    const prj = M.fcMonths.map((_, i) => sum(rows.map((r) => (state.projRow[r.id] ? toL(r, r._e.fin[i] - state.fc[r.id][i]) : 0))));
+    const pln = M.fcMonths.map((_, i) => sum(rows.map((r) => toL(r, r.plan[i]))));
+    const n = nH + M.fcMonths.length;
+    const top = Math.max(...real, ...fin, ...(k.planHas ? pln : [0]), k.avgL, 1) * 1.08;
+    const month = M.fcMonths[0], mName = MES_LARGO[+month.slice(5) - 1] + ' ' + month.slice(0, 4);
+    const vsAvg = k.avgL ? k.next / k.avgL - 1 : null, vsPlan = k.planHas && pln[0] ? k.next / pln[0] - 1 : null;
+    const dir = (v) => (v == null ? '' : `<span class="${v >= 0 ? 'up' : 'down'}">${nf0.format(Math.abs(v * 100))}% ${v >= 0 ? 'arriba' : 'abajo'}</span>`);
+    $id('hullTitle').textContent = `Forecast de ${mName}`;
+    $id('hullMark').innerHTML = (k.next >= 10000 ? nf1.format(k.next / 1000) + '<span>mil ' + k.uL + '</span>' : nf0.format(k.next) + `<span>${k.uL}</span>`);
+    $id('hullLede').innerHTML = `${MES_LARGO[+month.slice(5) - 1][0].toUpperCase() + MES_LARGO[+month.slice(5) - 1].slice(1)} viene ${dir(vsAvg)} del consumo de los últimos ${S.window} meses`
+      + (vsPlan != null ? ` y ${nf0.format(Math.abs(vsPlan * 100))}% ${vsPlan >= 0 ? 'sobre' : 'bajo'} el plan anterior.` : '.')
+      + (k.risk ? ` <b>${nf0.format(k.risk)} productos</b> tienen riesgo de quiebre.` : ' Sin riesgos de quiebre detectados.');
+    const ch = $id('hullChart');
+    ch.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+    const step = n > 20 ? 3 : 2;
+    let html = '';
+    hm.forEach((m, j) => {
+      html += `<div class="hbar real" style="height:${(real[j] / top) * 100}%" title="${mLabel(m)}: ${fmt(real[j])} ${k.uL} reales">${j % step === 0 ? `<span class="m">${mLabel(m)}</span>` : ''}</div>`;
+    });
+    M.fcMonths.forEach((m, i) => {
+      const tip = `${mLabel(m)}: forecast ${fmt(fin[i])} ${k.uL}` + (k.planHas ? ` · plan anterior ${fmt(pln[i])}` : '') + (prj[i] ? ` · proyectos ${fmt(prj[i])}` : '') + ' · clic para ver el mes';
+      const projH = fin[i] > 0 && prj[i] > 0 ? (prj[i] / fin[i]) * 100 : 0;
+      html += `<button class="hbar fc${i === 0 ? ' now' : ''}" data-month="${i}" style="height:${(fin[i] / top) * 100}%" title="${esc(tip)}" aria-label="${esc(tip)}">`
+        + (projH ? `<span class="proj" style="height:${projH}%"></span>` : '')
+        + (k.planHas && fin[i] ? `<span class="plan" style="bottom:${(pln[i] / fin[i]) * 100}%"></span>` : '')
+        + ((nH + i) % step === 0 ? `<span class="m">${mLabel(m)}</span>` : '') + '</button>';
+    });
+    html += `<div class="waterline" style="bottom:${(k.avgL / top) * 100}%"><em>Línea de flotación: promedio ${S.window} meses, ${fmt(k.avgL)} ${k.uL}</em></div>`;
+    html += `<div class="today" style="left:calc(${(nH / n) * 100}% - 3px)"><em>hoy</em></div>`;
+    ch.innerHTML = html;
+    ch.setAttribute('aria-label', `Consumo real de ${nH} meses y forecast de ${M.fcMonths.length} meses en ${k.uL}`);
+    const st = (label, value, title) => `<span class="stat"${title ? ` title="${esc(title)}"` : ''}>${label}<b>${value}</b></span>`;
+    $id('keel').innerHTML = [
+      `<span><i style="background:${BRAND.real}"></i>Consumo real</span>`,
+      `<span><i style="background:${BRAND.sky}"></i>Forecast</span>`,
+      prj.some((v) => v) ? `<span><i style="background:${BRAND.violet}"></i>Proyectos ≥${S.projThreshold}%</span>` : '',
+      k.planHas ? `<span><i style="background:#E8D7A0;height:3px"></i>Plan anterior</span>` : '',
+      st(k.acc.real ? 'Accuracy vs snapshot' : 'Accuracy total cartera', k.acc.value == null ? '–' : nf0.format(k.acc.value * 100) + '%', k.acc.label),
+      st('Sin movimiento', nf0.format(k.none)),
+      st('Celdas editadas', nf0.format(k.lockedCells)),
+      `<span class="total">${M.fcMonths.length} meses de forecast: ${fmt(k.horizon)} ${k.uL}` + (k.planHas ? ` (${fmtPct(k.plan ? k.horizon / k.plan - 1 : null)} vs plan)` : '') + '</span>',
+    ].join('');
+
+    // Para revisar: los casos accionables que más litros mueven
+    const ALAB = { RISK: 'Riesgo de quiebre', NOFC: 'Se consume y no tiene forecast', NOHIST: 'Forecast sin consumo reciente' };
+    const acts = rows.filter((r) => r._e.act).sort((a, b) => b._e.imp - a._e.imp);
+    $id('todoSub').textContent = acts.length ? `${nf0.format(acts.length)} casos piden una corrección. Estos son los que más litros mueven.` : 'No hay casos que pidan corrección con estos filtros.';
+    $id('todo').innerHTML = acts.length ? acts.slice(0, 5).map((r) => {
+      const a = r._e.alerts.filter((x) => x.act).sort((x, y) => y.imp - x.imp)[0];
+      return `<li data-detail="${esc(r.id)}" tabindex="0"><div class="imp">${fmt(a.imp)}<small>${k.uL}/mes</small></div><div class="what"><b>${ALAB[a.t] || ALERT_TYPES[a.t]}</b><span>${esc(r.desc)}. ${esc(a.msg)}.</span></div><span class="who">${esc(r.client.replace(/^M&P ARG /, ''))}</span></li>`;
+    }).join('') : '<li class="todo-empty">Todo en orden para enviar.</li>';
+    $id('btnAllCases').textContent = acts.length ? `Ver los ${nf0.format(acts.length)} casos` : 'Ver todas las alertas';
+
+    // Clientes: promedio vs forecast de los próximos 3 meses
+    const cli = [...groupBy(rows, (r) => r.client).entries()].map(([c, rs]) => ({ c, avg: sum(rs.map((r) => r._e.avgL)), fc: sum(rs.map((r) => toL(r, sum(r._e.fin.slice(0, 3))) / 3)) }))
+      .filter((x) => x.avg || x.fc).sort((a, b) => b.fc - a.fc).slice(0, 9);
+    const cmax = Math.max(1, ...cli.map((x) => Math.max(x.avg, x.fc)));
+    $id('cliList').innerHTML = cli.map((x) => {
+      const d = x.avg ? x.fc / x.avg - 1 : null;
+      return `<li data-client="${esc(x.c)}" tabindex="0" title="${esc(x.c)}: promedio ${fmt(x.avg)} ${k.uL}/mes, forecast ${fmt(x.fc)} ${k.uL}/mes"><span class="k">${esc(x.c.replace(/^M&P ARG /, ''))}</span><span class="track"><span class="avg" style="width:${(x.avg / cmax) * 100}%"></span><span class="f" style="width:${(x.fc / cmax) * 100}%"></span></span><span class="d ${d == null || d >= 0 ? 'pos' : 'neg'}">${d == null ? 'nuevo' : fmtPct(d)}</span></li>`;
+    }).join('');
   }
 
   function tooltipOpts(unit, extra) {
@@ -1088,10 +1123,12 @@
     cols.push({ title: '', data: null, orderable: false, className: 'stk c-edit', render: (r) => `<button class="ico-btn" data-fmrow="${esc(r.id)}" title="Ingresar forecast con la curva histórica (pop-up)">✎</button>` });
     cols.push({ title: 'Cliente', data: 'client', className: 'stk c-cli', render: (v, t) => (t === 'display' ? `<span class="cli-name" title="${esc(v)}">${esc(v.replace(/^M&P ARG /, ''))}</span>` : v) });
     cols.push({ title: 'SKU', data: 'sku', className: 'stk c-sku' });
-    cols.push({ title: 'Descripción', data: 'desc', className: 'desc', render: (v, t, r) => (t === 'display' ? `<a class="lnk" data-detail="${esc(r.id)}" title="${esc(v)}">${esc(v)}</a>` : v) });
-    cols.push({ title: 'Grupo', data: 'group' });
-    cols.push({ title: 'KAM', data: 'kam' });
-    if (M.hasPac) cols.push({ title: 'PAC', data: 'pac', className: 'num', render: (v) => (v ? fmt1(v) : '–') });
+    cols.push({ title: 'Descripción', data: 'desc', className: 'stk c-desc desc', render: (v, t, r) => (t === 'display' ? `<a class="lnk" data-detail="${esc(r.id)}" title="${esc(v)}">${esc(v)}</a>` : v) });
+    if (S.showMeta) {
+      cols.push({ title: 'Grupo', data: 'group' });
+      cols.push({ title: 'KAM', data: 'kam' });
+      if (M.hasPac) cols.push({ title: 'PAC', data: 'pac', className: 'num', render: (v) => (v ? fmt1(v) : '–') });
+    }
     for (let j = 0; j < hv; j++) {
       const i = hOff + j, k = M.histMonths[i];
       cols.push({
@@ -1112,7 +1149,6 @@
       if (r._a.status === 'interm') return `<span class="muted" title="Demanda intermitente: tendencia poco confiable">${fmtPct(p)}</span>`;
       return `<span class="${pctClass(p)}" title="Variación ajustada en ${S.window} meses">${p > 0.05 ? '▲' : p < -0.05 ? '▼' : '▬'} ${fmtPct(p)}</span>`;
     }, _calc: true });
-    cols.push({ title: 'Estado', data: null, orderable: false, render: (r, t) => (t === 'display' ? statusBadges(r) : r._a.status), _calc: true });
     M.fcMonths.forEach((k, i) => {
       cols.push({
         title: mLabel(k), data: null, className: 'num fc fcm' + (i === 0 ? ' sep' : ''), orderSequence: ['desc', 'asc'], _fc: i,
@@ -1138,7 +1174,8 @@
       const d = r._e.devPlan; if (t !== 'display') return d == null ? -999 : d;
       return `<span class="${pctClass(d)}">${fmtPct(d)}</span>`;
     }, _calc: true });
-    cols.push({ title: 'Alertas', data: null, orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? alertBadge(r) : r._e.alerts.length * 10 + (r._e.risk ? 5 : 0)), _calc: true });
+    cols.push({ title: 'Alertas', data: null, orderSequence: ['desc', 'asc'], render: (r, t) => (t === 'display' ? alertBadge(r) : (r._e.act ? 1e9 : 0) + r._e.imp), _calc: true });
+    cols.push({ title: 'Estado', data: null, orderable: false, render: (r, t) => (t === 'display' ? statusBadges(r) : r._a.status), _calc: true });
     return cols;
   }
 
@@ -1157,7 +1194,7 @@
         language: dtLang(),
         dom: 'rtip<"dt-bottom"l>',
       });
-      fillMonthSelectors();
+      fillMonthSelectors(); syncGridPrefs();
     } else {
       grid.clear(); grid.rows.add(rows); grid.draw(false);
     }
@@ -1178,6 +1215,10 @@
     };
   }
 
+  function syncGridPrefs() {
+    const hv = [0, 3, 6, 12].includes(+state.settings.histVisible) ? +state.settings.histVisible : 3;
+    $id('gHist').value = hv; $id('gMeta').checked = !!state.settings.showMeta;
+  }
   function fillMonthSelectors() {
     const o = state.meta.fcMonths.map((k, i) => `<option value="${i}">${mLabel(k)}</option>`).join('');
     $id('mFrom').innerHTML = o; $id('mTo').innerHTML = o;
@@ -1243,9 +1284,9 @@
     const u = M.unit === 'pz' ? 'L' : M.unit;
     $id('monthKpis').innerHTML = [
       kpi('Forecast ' + mLabel(k), fmt(fcT) + ' ' + u, ''),
-      kpi('vs promedio', `<span class="${pctClass(fcT / avgT - 1)}">${fmtPct(avgT ? fcT / avgT - 1 : null)}</span>`, fmt(avgT) + ' ' + u, 'k-purple'),
-      M.hasPlan ? kpi('vs plan anterior', `<span class="${pctClass(fcT / planT - 1)}">${fmtPct(planT ? fcT / planT - 1 : null)}</span>`, fmt(planT) + ' ' + u, 'k-sky') : '',
-      lyT != null ? kpi('vs mismo mes año ant.', `<span class="${pctClass(fcT / lyT - 1)}">${fmtPct(lyT ? fcT / lyT - 1 : null)}</span>`, fmt(lyT) + ' ' + u, 'k-gray') : '',
+      kpi('vs promedio', `<span class="${pctClass(fcT / avgT - 1)}">${fmtPct(avgT ? fcT / avgT - 1 : null)}</span>`, fmt(avgT) + ' ' + u),
+      M.hasPlan ? kpi('vs plan anterior', `<span class="${pctClass(fcT / planT - 1)}">${fmtPct(planT ? fcT / planT - 1 : null)}</span>`, fmt(planT) + ' ' + u) : '',
+      lyT != null ? kpi('vs mismo mes año ant.', `<span class="${pctClass(fcT / lyT - 1)}">${fmtPct(lyT ? fcT / lyT - 1 : null)}</span>`, fmt(lyT) + ' ' + u) : '',
     ].join('');
   }
   function refreshMonthRow(id) {
@@ -1326,18 +1367,20 @@
     return out;
   }
   function renderAlerts(rows) {
-    const data = allAlerts(rows);
+    const onlyAct = $id('alScope').value !== 'all';
+    const data = allAlerts(rows).filter((a) => !onlyAct || a.act);
     const cols = [
+      { title: 'Tipo de alerta', data: 'act', render: (v, t) => (t === 'display' ? (v ? '<span class="badge b-high">Accionable</span>' : '<span class="badge b-low">Informativa</span>') : (v ? 1 : 0)) },
       { title: 'Severidad', data: 'sev', render: (v, t) => (t === 'display' ? `<span class="badge ${SEV[v][1]}">${SEV[v][0]}</span>` : SEV[v][2]) },
       { title: 'Tipo', data: 't', render: (v) => ALERT_TYPES[v] },
       { title: 'Cliente', data: 'r.client' },
       { title: 'SKU', data: 'r.sku' },
       { title: 'Descripción', data: 'r.desc', className: 'desc', render: (v, t, a) => (t === 'display' ? `<a class="lnk" data-detail="${esc(a.r.id)}">${esc(v)}</a>` : v) },
       { title: 'Detalle', data: 'msg' },
-      { title: 'Volumen (L/mes)', data: null, className: 'num', render: (a, t) => (t === 'display' ? fmt(Math.max(a.r._e.avgL, toL(a.r, a.r._e.fcAvgW))) : Math.max(a.r._e.avgL, toL(a.r, a.r._e.fcAvgW))) },
+      { title: 'Impacto (L/mes)', data: 'imp', className: 'num', orderSequence: ['desc', 'asc'], render: (v, t) => (t === 'display' ? `<b>${fmt(v)}</b>` : v || 0) },
     ];
     if (alertTbl) { alertTbl.destroy(); $('#tblAlerts').empty(); }
-    alertTbl = $('#tblAlerts').DataTable({ data, columns: cols, deferRender: true, pageLength: 50, order: [[0, 'desc'], [6, 'desc']], language: dtLang(), dom: 'rtip<"dt-bottom"l>' });
+    alertTbl = $('#tblAlerts').DataTable({ data, columns: cols, deferRender: true, pageLength: 50, order: [[7, 'desc']], language: { ...dtLang(), emptyTable: onlyAct ? 'No hay alertas accionables con estos filtros 👍' : 'Sin alertas' }, dom: 'rtip<"dt-bottom"l>' });
   }
 
   /* ---------- 7.6 Detalle de producto (drawer) ---------- */
@@ -1548,11 +1591,15 @@
     let base = rows.filter((r) => w.get(r.id) > 0);
     if (!base.length) { base = rows; base.forEach((r) => w.set(r.id, 1)); }
     const out = new Map(base.map((r) => [r.id, new Array(H).fill(0)]));
+    // productos del alcance que no entran en el reparto (sin consumo reciente o sin PAC): su valor actual
+    // se mantiene, así que se descuenta del total pedido para que el cliente cierre exactamente
+    const outside = modal.rows.filter((r) => !base.includes(r));
     for (let i = 0; i < H; i++) {
       const locked = respect ? base.filter((r) => state.manual[r.id][i]) : [];
       const lockedL = sum(locked.map((r) => toL(r, state.fc[r.id][i])));
+      const outsideL = sum(outside.map((r) => toL(r, state.fc[r.id][i])));
       const free = base.filter((r) => !locked.includes(r));
-      const tw = sum(free.map((r) => w.get(r.id))), rem = Math.max(0, modal.values[i] - lockedL);
+      const tw = sum(free.map((r) => w.get(r.id))), rem = Math.max(0, modal.values[i] - lockedL - outsideL);
       free.forEach((r) => { out.get(r.id)[i] = tw ? (rem * w.get(r.id)) / tw / (conv ? r.pac : 1) : 0; });
       locked.forEach((r) => { out.get(r.id)[i] = null; }); // null = no tocar
     }
@@ -1568,7 +1615,7 @@
     if (modal.mode !== 'client') return;
     const { w, base, skipped } = distribute(), tw = sum(base.map((r) => w.get(r.id)));
     const top = base.slice().sort((a, b) => w.get(b.id) - w.get(a.id)).slice(0, 8);
-    $id('fmDist').innerHTML = `<p class="muted small">El total de cada mes se reparte entre <b>${base.length}</b> productos según su peso en los últimos ${modal.window} meses${skipped ? ` · ${skipped} productos sin consumo${state.meta.unit === 'pz' ? ' o sin PAC' : ''} quedan como están` : ''}.</p>`
+    $id('fmDist').innerHTML = `<p class="muted small">El total de cada mes se reparte entre <b>${base.length}</b> productos según su peso en los últimos ${modal.window} meses${skipped ? ` · ${skipped} productos sin consumo reciente${state.meta.unit === 'pz' ? ' o sin PAC' : ''} conservan su valor actual, que se descuenta del total` : ''}.</p>`
       + '<table class="fm-table small"><thead><tr><th>Producto</th><th class="num">Mix</th></tr></thead><tbody>'
       + top.map((r) => `<tr><td>${esc(r.desc)}</td><td class="num">${tw ? nf1.format((w.get(r.id) / tw) * 100) + '%' : '–'}</td></tr>`).join('')
       + (base.length > top.length ? `<tr><td class="muted">+ ${base.length - top.length} productos más</td><td></td></tr>` : '') + '</tbody></table>';
@@ -1651,9 +1698,9 @@
     const tot = (arr, t) => sum(arr.filter((p) => !t || p.type === t).map((p) => sum(Object.values(p.liters))));
     $id('pjKpis').innerHTML = [
       kpi('Incluidos en el forecast', nf0.format(inc.length), `de ${nf0.format(P.length)} proyectos · probabilidad ≥ ${S.projThreshold}%`),
-      kpi('Oportunidades incluidas', '+' + fmt(tot(inc, 'OPP')) + ' L', `${inc.filter((p) => p.type === 'OPP').length} OPP`, 'k-violet'),
-      kpi('Vulnerabilidades incluidas', '−' + fmt(tot(inc, 'VUL')) + ' L', `${inc.filter((p) => p.type === 'VUL').length} VUL`, 'k-fuchsia'),
-      kpi('Fuera por probabilidad', nf0.format(P.length - inc.length), fmt(tot(P.filter((p) => !p._incl))) + ' L no considerados', 'k-gray'),
+      kpi('Oportunidades incluidas', '+' + fmt(tot(inc, 'OPP')) + ' L', `${inc.filter((p) => p.type === 'OPP').length} OPP`),
+      kpi('Vulnerabilidades incluidas', '−' + fmt(tot(inc, 'VUL')) + ' L', `${inc.filter((p) => p.type === 'VUL').length} VUL`),
+      kpi('Fuera por probabilidad', nf0.format(P.length - inc.length), fmt(tot(P.filter((p) => !p._incl))) + ' L no considerados'),
     ].join('');
     const span = (p) => { const ks = Object.keys(p.liters).filter((k) => p.liters[k]).sort(); return ks.length ? mLabel(ks[0]) + (ks.length > 1 ? ' → ' + mLabel(ks.at(-1)) : '') : '–'; };
     const cols = [
@@ -1835,10 +1882,10 @@
     XLSX.utils.book_append_sheet(wb, buildSheet('Resumen por cliente (litros)', h3, d3, f3, [26, 14, 12, 13, ...ml.map(() => 11), 12, 13, 11, 11, 10], stamp), 'Resumen por Cliente');
 
     // 4) Alertas
-    const al = allAlerts(rows).sort((a, b) => SEV[b.sev][2] - SEV[a.sev][2] || b.r._e.avgL - a.r._e.avgL);
-    const h4 = ['Severidad', 'Tipo', 'Cliente', 'KAM', 'SKU', 'Descripción', 'Detalle', `Prom ${S.window}m (${U})`, `Forecast total (${U})`];
-    const d4 = al.map((a) => [SEV[a.sev][0], ALERT_TYPES[a.t], a.r.client, a.r.kam, isNaN(+a.r.sku) ? a.r.sku : +a.r.sku, a.r.desc, a.msg, a.r._a.avgN, a.r._e.fcSum]);
-    XLSX.utils.book_append_sheet(wb, buildSheet('Alertas', h4, d4, [null, null, null, null, null, null, null, F_DEC, F_INT], [10, 28, 24, 10, 10, 44, 70, 12, 14], stamp), 'Alertas');
+    const al = allAlerts(rows).sort((a, b) => (b.act - a.act) || (b.imp || 0) - (a.imp || 0));
+    const h4 = ['Accionable', 'Impacto (L/mes)', 'Severidad', 'Tipo', 'Cliente', 'KAM', 'SKU', 'Descripción', 'Detalle', `Prom ${S.window}m (${U})`, `Forecast total (${U})`];
+    const d4 = al.map((a) => [a.act ? 'Sí' : 'No', a.imp || 0, SEV[a.sev][0], ALERT_TYPES[a.t], a.r.client, a.r.kam, isNaN(+a.r.sku) ? a.r.sku : +a.r.sku, a.r.desc, a.msg, a.r._a.avgN, a.r._e.fcSum]);
+    XLSX.utils.book_append_sheet(wb, buildSheet('Alertas', h4, d4, [null, F_INT, null, null, null, null, null, null, null, F_DEC, F_INT], [11, 14, 10, 28, 24, 10, 10, 44, 70, 12, 14], stamp), 'Alertas');
 
     // 5) Proyectos con el formato de la hoja VULOPPS (para pegar en el archivo)
     if (state.projects.length) {
@@ -1948,39 +1995,47 @@
     const nR = D.lastRow - D.firstRow + 1, nC = D.cols.length;
 
     // 1) Instrucciones
+    const keyOf = (r) => (r ? r.key || r.client + r.sku : '');
     const L = [
-      ['Cómo pasar el forecast al Excel original sin tocar fórmulas ni estructura'],
-      ['Generado: ' + now.toLocaleString('es-AR') + ' · Archivo base: ' + M.fileName],
+      ['Cómo pasar el forecast al archivo en la nube (SharePoint / OneDrive / Teams) sin tocar fórmulas ni estructura'],
+      ['Generado: ' + now.toLocaleString('es-AR') + ' · Copia cargada en la herramienta: ' + M.fileName],
       [],
-      ['IMPORTANTE: usá una copia del MISMO archivo que cargaste en la herramienta (mismas filas). Este archivo no reemplaza nada: solo trae valores donde hubo cambios.'],
+      ['IMPORTANTE: los cambios se pegan directamente en el archivo de la NUBE, abierto con Excel de escritorio. Este archivo no reemplaza nada: solo trae valores donde hubo cambios.'],
+      ['Pegá el mismo día en que descargaste la copia: si alguien agrega u ordena filas en el medio, el bloque queda desalineado (el PASO 1c lo detecta).'],
       [],
-      ['PASO 1 · Preparar el original'],
-      ['   a) Abrí la copia revisada del original.'],
-      [`   b) En la hoja ${D.sheet}, sacá los filtros (Datos → Borrar) para que se vean todas las filas.`],
-      [`   c) Verificá la alineación: ${D.sheet}!A${D.firstRow} debe decir "${first ? first.key || first.client + first.sku : ''}" y ${D.sheet}!A${D.lastRow} debe decir "${last ? last.key || last.client + last.sku : ''}".`],
+      ['PASO 1 · Abrir el archivo de la nube en Excel de escritorio'],
+      ['   a) Abrí el archivo online y tocá Editar → Abrir en la aplicación de escritorio. Arriba tiene que decir "Autoguardado: Activado".'],
+      [`   b) En la hoja ${D.sheet}, sacá los filtros (Datos → Borrar) para que se vean todas las filas. Anotá cuáles había para volver a ponerlos al final.`],
+      [`   c) Verificá la alineación: ${D.sheet}!A${D.firstRow} debe decir "${keyOf(first)}" y ${D.sheet}!A${D.lastRow} debe decir "${keyOf(last)}". Si no coinciden, NO pegues: descargá una copia nueva, volvé a cargarla en la herramienta y generá este archivo otra vez.`],
+      ['   d) Si otra persona está editando la hoja al mismo tiempo, coordiná antes de pegar.'],
       [],
       [`PASO 2 · Forecast DMR (${nR} filas × ${nC} meses, ${mLabel(M.fcMonths[0])} a ${mLabel(M.fcMonths.at(-1))}, en piezas)`],
       ['   a) En ESTE archivo, escribí BLOQUE_DMR en el cuadro de nombres (arriba a la izquierda, al lado de la barra de fórmulas) y Enter.'],
       ['   b) Ctrl+C.'],
-      [`   c) En el original, hoja ${D.sheet}, hacé clic en la celda ${c0}${D.firstRow}.`],
-      ['   d) Pegado especial (Ctrl+Alt+V) → marcá "Valores" y "Saltar blancos" → Aceptar.'],
+      [`   c) En el archivo de la nube, hoja ${D.sheet}, hacé clic en la celda ${c0}${D.firstRow}.`],
+      ['   d) Pegado especial (Ctrl+Alt+V) → marcá "Valores" y "Saltar blancos" → Aceptar. Nunca uses el pegado común (Ctrl+V): borraría fórmulas.'],
       [`   Resultado: se modifican ${res.changes.length - res.keptF} celdas (lista en la hoja Control_DMR). Todo lo demás queda igual.`],
+      ['   Si algo salió mal: Ctrl+Z lo revierte, aun con Autoguardado activado.'],
       [],
     ];
     if (vb) L.push(
       [`PASO 3 · Proyectos (hoja ${vb.sheet}, litros)`],
       ['   a) En ESTE archivo, escribí BLOQUE_VULOPPS en el cuadro de nombres y Enter → Ctrl+C.'],
-      [`   b) En el original, hoja ${vb.sheet}, clic en la celda ${colL(vb.c0)}${vb.r0} → Pegado especial → "Valores" + "Saltar blancos".`],
+      [`   b) En el archivo de la nube, hoja ${vb.sheet}, clic en la celda ${colL(vb.c0)}${vb.r0} → Pegado especial → "Valores" + "Saltar blancos".`],
       ['   La columna de descripción y los totales son fórmulas del original: el bloque los deja vacíos para no tocarlos.'],
       [],
     );
     L.push(
-      ['PASO FINAL · Guardá el original (mismo formato .xlsb) y devolvelo.'],
+      ['PASO FINAL · Cerrar'],
+      [`   a) Volvé a aplicar los filtros que había en ${D.sheet}.`],
+      ['   b) Controlá 2 o 3 celdas contra la hoja Control_DMR.'],
+      ['   c) No hace falta "Guardar como": con Autoguardado el archivo de la nube ya quedó actualizado y Demanda ve los cambios.'],
       [],
       ['Notas'],
       [`• ${res.replacedF} celdas tenían la fórmula =estadístico y tu valor es distinto: ` + (opts.keepFormulas ? 'NO se incluyeron (elegiste respetar fórmulas).' : 'se reemplazan por tu valor, como si lo escribieras a mano.')],
       ['• Contenido del DMR: ' + (opts.includeProj ? 'forecast final (base + proyectos ≥ ' + state.settings.projThreshold + '%).' : 'forecast base sin proyectos (los proyectos van por la hoja VULOPPS, así no se cuentan dos veces).')],
       res.newRows.length ? [`• ${res.newRows.length} combinaciones con forecast no existen en el original: están en la hoja Filas_nuevas para que Demanda decida cómo agregarlas.`] : ['• Todas las combinaciones con forecast existen en el original.'],
+      ['• Excel online (navegador) no tiene "Saltar blancos": este pegado tiene que hacerse siempre desde Excel de escritorio.'],
     );
     const wsL = XLSX.utils.aoa_to_sheet(L); wsL['!cols'] = [{ wch: 140 }];
     XLSX.utils.book_append_sheet(wb, wsL, 'LEEME');
@@ -2102,6 +2157,7 @@
     const M = state.meta;
     $id('fileInfo').innerHTML = `<b>${esc(M.fileName)}</b><br>${nf0.format(state.rows.length)} combinaciones · ${M.histMonths.length} meses de historia<br>Hojas: ${esc([M.sheets.forecast, M.sheets.actuals].filter(Boolean).join(' + '))} · unidad ${M.unit === 'pz' ? 'piezas' : M.unit}`;
     $id('btnExport').disabled = false; $id('btnExportOrig').disabled = false;
+    $id('cycleLabel').textContent = 'Ciclo ' + mLabel(M.fcMonths[0]);
     document.querySelectorAll('.nav-item').forEach((b) => (b.disabled = false));
     if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; }
     $id('monthSel').innerHTML = '';
@@ -2211,6 +2267,7 @@
     $id('mAction').addEventListener('change', updateParamField);
     $id('btnApply').addEventListener('click', () => {
       const action = $id('mAction').value;
+      if (!action) { toast('Elegí primero una acción', true); return; }
       let from = +$id('mFrom').value, to = +$id('mTo').value; if (from > to) [from, to] = [to, from];
       const scope = $id('mScope').value;
       const rows = scope === 'selected' ? state.rows.filter((r) => state.selected.has(r.id)) : filteredRows();
@@ -2231,15 +2288,36 @@
         toast(action === 'restorehist' ? `${n} meses vuelven a contar en la estadística` : `${n} meses marcados como proyecto. Los promedios se recalcularon: usá “Completar con sugerido” para actualizar el forecast base.`);
         return;
       }
-      if (rows.length > 200 && !confirm(`La acción se aplicará a ${nf0.format(rows.length)} filas (meses ${mLabel(state.meta.fcMonths[from])} a ${mLabel(state.meta.fcMonths[to])}). ¿Continuar?`)) return;
-      const n = massApply(rows, action, from, to, param, $id('mOnlyEmpty').checked);
+      const onlyEmpty = $id('mOnlyEmpty').checked;
+      const will = massApply(rows, action, from, to, param, onlyEmpty, true);
+      if (!will) { toast('No hay celdas para cambiar con esa acción (las bloqueadas no se tocan)'); return; }
+      const actName = $id('mAction').selectedOptions[0].textContent;
+      if (!confirm(`${actName}\n\nSe van a modificar ${nf0.format(will)} celdas en ${nf0.format(rows.length)} filas (${mLabel(state.meta.fcMonths[from])} a ${mLabel(state.meta.fcMonths[to])}).\nLas celdas bloqueadas no se tocan y podés deshacer con Ctrl+Z.\n\n¿Aplicar?`)) return;
+      const n = massApply(rows, action, from, to, param, onlyEmpty);
       refreshGrid();
       toast(`${nf0.format(n)} celdas actualizadas en ${nf0.format(rows.length)} filas` + (['lock', 'unlock'].includes(action) ? '' : ' (las bloqueadas no se tocan)'));
     });
     $id('btnUndo').addEventListener('click', undo);
+    const gridPref = () => {
+      state.settings.histVisible = +$id('gHist').value; state.settings.showMeta = $id('gMeta').checked;
+      saveSession(); if (grid) { grid.destroy(); $('#tblGrid').empty(); grid = null; } state.dirty.add('grid'); renderView();
+    };
+    $id('gHist').addEventListener('change', gridPref); $id('gMeta').addEventListener('change', gridPref);
     document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.target.matches('input, textarea')) { e.preventDefault(); undo(); } });
 
     // vista mensual
+    $id('hullChart').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-month]'); if (!b) return;
+      if (!$id('monthSel').options.length) fillMonthSelectors();
+      $id('monthSel').value = b.dataset.month; state.dirty.add('monthly'); showView('monthly');
+    });
+    $id('btnAllCases').addEventListener('click', () => { $id('alScope').value = 'act'; showView('alerts'); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const li = e.target.closest && e.target.closest('#todo li[data-detail], #cliList li[data-client]');
+      if (li) { e.preventDefault(); li.click(); }
+    });
+    $id('alScope').addEventListener('change', () => { state.dirty.add('alerts'); renderView(); });
     $id('monthSel').addEventListener('change', () => { state.dirty.add('monthly'); renderView(); });
 
     // drawer
@@ -2287,6 +2365,7 @@
 
   function updateParamField() {
     const a = $id('mAction').value;
+    $id('btnApply').disabled = !a;
     $id('mParamWrap').hidden = !(a === 'pct' || a === 'value');
     $id('mFrom').disabled = $id('mTo').disabled = $id('mOnlyEmpty').disabled = a === 'cleanspikes' || a === 'restorehist';
     $id('mParamLabel').textContent = a === 'pct' ? '% (ej. 10 o -15)' : 'Valor';

@@ -74,6 +74,7 @@ El archivo que se devuelve a Demanda tiene que conservar sus fórmulas y su estr
 - **Control_DMR**: lista cada celda que cambia, con la celda exacta, antes, después y si reemplaza una fórmula `=estadístico`.
 - **Filas_nuevas**: combinaciones o proyectos que no entran en la estructura del original (no se agregan filas). Quedan para cargar a mano o informar a Demanda.
 - Opciones: respetar las celdas con fórmula `=estadístico` aunque tu valor sea distinto, e incluir los proyectos dentro del DMR. Por defecto los proyectos van solo por VULOPPS, para no contarlos dos veces.
+- **Archivo en la nube** (SharePoint, OneDrive o Teams): bajá una copia para cargar en la herramienta y pegá los bloques en el archivo de la nube abierto con **Excel de escritorio** (*Editar → Abrir en la aplicación de escritorio*). Excel online no tiene "Saltar blancos". La hoja LEEME del archivo generado trae el paso a paso y la verificación de alineación por KEY.
 - El forecast inicial por defecto es el **DMR del archivo**, así solo viajan las correcciones que hiciste a conciencia. La propuesta estadística sigue disponible como *Sugerido*: está en el tooltip de cada celda, en la vista mensual, en el pop-up de curva y en la acción masiva "Completar con sugerido".
 
 Verificación realizada con el archivo real: después de simular el pegado sobre una copia del original, las 15.240 celdas del DMR quedaron con el valor esperado, solo se escribieron las celdas con cambios y las fórmulas no tocadas siguieron intactas.
@@ -103,7 +104,7 @@ La detección es automática: busca la fila de encabezados por nombre de columna
 | Sin movimiento | Consumo 0 en toda la ventana. |
 | Estacionalidad básica | Correlación ≥ 0,6 con el mismo mes del año anterior (con al menos 6 pares de meses) y coeficiente de variación ≥ 0,3. |
 | Picos anormales | Solo en consumidores regulares (≥ 6 meses con consumo de 12): valor > 3× el promedio del resto y > promedio + 3 desvíos. |
-| Alertas | **Desvío vs histórico** (forecast promedio vs promedio N meses > umbral, 50% por defecto) · **Forecast sin consumo reciente** · **Consumo sin forecast** (próximos 3 meses en 0) · **Pico anormal** · **Riesgo de quiebre** · **Cambio fuerte vs plan anterior**. |
+| Alertas | Se separan en **accionables** (riesgo de quiebre, consumo sin forecast, forecast sin consumo reciente) e **informativas** (desvío vs histórico, picos, cambio fuerte vs plan), y se ordenan por **impacto en litros/mes**. El badge del menú y el KPI cuentan solo las accionables. Tipos: **Desvío vs histórico** (forecast promedio vs promedio N meses > umbral, 50% por defecto) · **Forecast sin consumo reciente** · **Consumo sin forecast** (próximos 3 meses en 0) · **Pico anormal** · **Riesgo de quiebre** · **Cambio fuerte vs plan anterior**. |
 | Riesgo de quiebre | **Alto** si la cartera de un mes supera el forecast de ese mes. **Medio** si el forecast del primer mes es menor al 60% del consumo de los últimos 3 meses (solo en filas no intermitentes). |
 | Forecast accuracy | Con snapshot: 1 − WAPE del forecast exportado contra el real, a nivel cliente × SKU y en litros. Sin snapshot: backtest del promedio sobre los últimos 3 meses reales, a nivel total de cartera, con el valor a nivel cliente × SKU como referencia. |
 
@@ -112,7 +113,8 @@ La detección es automática: busca la fila de encabezados por nombre de columna
 ```
 forecast-app/
 ├── index.html      Estructura: sidebar, topbar, filtros globales, 7 vistas, drawer de detalle, pop-up de previsión
-├── styles.css      Identidad AkzoNobel (navy #003A70), semáforos, layout responsive
+├── styles.css      Tema "Línea de flotación" (casco, mar, antiincrustante), layout responsive
+├── fonts/          Barlow y Barlow Condensed (OFL), locales para funcionar sin internet
 ├── app.js          Toda la lógica (un IIFE, sin dependencias de build)
 ├── vendor/         jQuery 3.7.1, DataTables 1.13.11, Chart.js 4.4.4, SheetJS 0.18.5 (locales)
 └── assets/logos/   AkzoNobel (blanco) e International (color)

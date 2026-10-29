@@ -14,23 +14,23 @@
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <img src="assets/logos/akzonobel-white.svg" alt="AkzoNobel">
+      <div class="wordmark">Forecast MP&amp;Y<small id="cycleLabel">Sin archivo cargado</small></div>
     </div>
     <nav class="nav">
-      <button class="nav-item active" data-view="dashboard"><span class="ico">◧</span>Dashboard</button>
-      <button class="nav-item" data-view="grid"><span class="ico">▦</span>Forecast</button>
-      <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Vista mensual</button>
-      <button class="nav-item" data-view="clients"><span class="ico">◉</span>Resumen por cliente</button>
-      <button class="nav-item" data-view="products"><span class="ico">◈</span>Resumen por producto</button>
+      <button class="nav-item active" data-view="dashboard"><span class="ico">◧</span>Resumen del mes</button>
+      <button class="nav-item" data-view="grid"><span class="ico">▦</span>Cargar forecast</button>
+      <button class="nav-item" data-view="monthly"><span class="ico">▤</span>Mes por mes</button>
+      <button class="nav-item" data-view="clients"><span class="ico">◉</span>Clientes</button>
+      <button class="nav-item" data-view="products"><span class="ico">◈</span>Productos</button>
       <button class="nav-item" data-view="projects"><span class="ico">◆</span>Proyectos <span class="nav-badge nb-violet" id="navProjCount" hidden>0</span></button>
-      <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Alertas <span class="nav-badge" id="navAlertCount">0</span></button>
-      <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Configuración</button>
+      <button class="nav-item" data-view="alerts"><span class="ico">⚠</span>Para revisar <span class="nav-badge" id="navAlertCount">0</span></button>
+      <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Ajustes</button>
     </nav>
     <div class="sidebar-foot">
       <div class="file-info" id="fileInfo">Sin archivo cargado</div>
-      <button class="btn btn-light btn-block" id="btnLoad">Cargar archivo Excel</button>
-      <button class="btn btn-sky btn-block" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
-      <button class="btn btn-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
+      <button class="btn btn-outline-light btn-block" id="btnLoad">Cargar archivo Excel</button>
+      <button class="btn btn-light btn-block btn-strong" id="btnExportOrig" disabled title="Bloques para pegar en el Excel original con Pegado especial, sin tocar fórmulas ni estructura">Volcar al Excel original</button>
+      <button class="btn btn-outline-light btn-block" id="btnExport" disabled>Exportar Excel de análisis</button>
       <div class="save-state" id="saveState"></div>
     </div>
   </aside>
@@ -44,7 +44,6 @@
         <div class="subtitle" id="viewSubtitle">Forecast mensual de consumo</div>
       </div>
       <button class="btn btn-ghost filter-toggle" id="btnFilters" hidden>Filtros</button>
-      <img class="topbar-logo" src="assets/logos/international-blue.png" alt="International">
     </header>
 
     <!-- Barra de filtros global (aplica a todas las vistas) -->
@@ -57,7 +56,8 @@
       <div class="f-field"><label>Estado</label>
         <select id="fStatus">
           <option value="">Todos</option>
-          <option value="alert">Con alertas</option>
+          <option value="alert">Con alertas accionables</option>
+          <option value="alertall">Con alertas (todas)</option>
           <option value="up">En alza</option>
           <option value="down">En baja</option>
           <option value="flat">Estables</option>
@@ -80,7 +80,7 @@
     <section class="view active" id="view-empty">
       <div class="dropzone" id="dropzone">
         <div class="dz-icon">⇪</div>
-        <h2>Arrastrá el archivo de forecast acá</h2>
+        <h2>Arrastrá el archivo de forecast</h2>
         <p>Formatos .xlsx y .xlsb. Se detecta automáticamente la hoja <b>Actuals</b> y, si existe, la hoja <b>Forecast</b> (plan anterior DMR, estadístico, KAM, PAC y cartera).</p>
         <button class="btn btn-primary" id="btnLoad2">Elegir archivo</button>
         <p class="muted small">El archivo se procesa 100% en tu navegador: no se sube a ningún servidor.</p>
@@ -89,18 +89,31 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
-      <div class="kpis" id="kpis"></div>
-      <div class="grid-2">
-        <div class="card card-wide">
-          <div class="section-bar">Evolución mensual <span class="bar-note" id="trendUnitNote"></span></div>
-          <div class="chart-box tall"><canvas id="chTrend"></canvas></div>
+      <div class="hull">
+        <p class="hull-title" id="hullTitle"></p>
+        <div class="draft">
+          <div class="mark" id="hullMark"></div>
+          <p class="lede" id="hullLede"></p>
         </div>
+        <div class="hull-chart" id="hullChart" role="img"></div>
+        <div class="keel" id="keel"></div>
+      </div>
+      <div class="deckgrid">
+        <section>
+          <h2>Para revisar antes de enviar</h2>
+          <p class="sub" id="todoSub"></p>
+          <ul class="todo" id="todo"></ul>
+          <button class="btn btn-primary" id="btnAllCases">Ver todos los casos</button>
+        </section>
+        <section>
+          <h2>Clientes: próximos 3 meses</h2>
+          <p class="sub">Barra gris: promedio de los últimos meses. Línea: forecast. Clic para ver el cliente.</p>
+          <ul class="clist" id="cliList"></ul>
+        </section>
+      </div>
+      <div class="grid-3">
         <div class="card">
-          <div class="section-bar">Por cliente: promedio histórico vs forecast</div>
-          <div class="chart-box"><canvas id="chClients"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="section-bar">Mayores variaciones por grupo (forecast vs promedio)</div>
+          <div class="section-bar">Variación por grupo</div>
           <div class="chart-box"><canvas id="chGroups"></canvas></div>
         </div>
         <div class="card">
@@ -133,6 +146,7 @@
           <div class="tb-group">
             <label>Acción</label>
             <select id="mAction">
+              <option value="" selected>Elegí una acción…</option>
               <option value="suggested">Completar con sugerido</option>
               <option value="plan">Copiar plan anterior (DMR)</option>
               <option value="stat">Copiar estadístico del sistema</option>
@@ -153,8 +167,12 @@
           <label class="f-check"><input type="checkbox" id="mOnlyEmpty"> Solo celdas en 0</label>
           <button class="btn btn-primary" id="btnApply">Aplicar</button>
           <button class="btn btn-ghost" id="btnUndo" disabled>↶ Deshacer</button>
-          <button class="btn btn-sky" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
+          <button class="btn btn-primary" id="btnClientWizard" title="Proyectar los próximos meses con la curva histórica de un cliente">📈 Previsión por cliente</button>
           <div class="tb-spacer"></div>
+          <div class="tb-group"><label>Historia visible</label>
+            <select id="gHist"><option value="0">Sin historia</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option></select>
+          </div>
+          <label class="f-check"><input type="checkbox" id="gMeta"> Grupo, KAM y PAC</label>
           <div class="legend">
             <span class="lg lg-up">Aumento</span>
             <span class="lg lg-down">Caída</span>
@@ -206,7 +224,13 @@
     <!-- ALERTAS -->
     <section class="view" id="view-alerts">
       <div class="card table-card">
-        <div class="section-bar">Alertas <span class="bar-note">se recalculan en cada edición</span></div>
+        <div class="section-bar">Alertas <span class="bar-note">ordenadas por impacto en litros · se recalculan en cada edición</span></div>
+        <div class="toolbar al-bar">
+          <div class="tb-group"><label>Mostrar</label>
+            <select id="alScope"><option value="act">Accionables (riesgo de quiebre, consumo sin forecast…)</option><option value="all">Todas, incluidas las informativas</option></select>
+          </div>
+          <p class="muted small al-note">Las <b>accionables</b> piden una corrección. Las <b>informativas</b> (desvíos, picos, cambios contra el plan) sirven de contexto.</p>
+        </div>
         <div class="table-scroll"><table id="tblAlerts" class="display compact" style="width:100%"></table></div>
       </div>
     </section>
@@ -290,14 +314,14 @@
     <div class="chart-box"><canvas id="chRow"></canvas></div>
     <div class="dw-metrics" id="dwMetrics"></div>
     <div class="dw-actions">
-      <button class="btn btn-sky" data-rowact="modal">✎ Ingresar forecast (curva)</button>
-      <button class="btn btn-primary" data-rowact="suggested">Aplicar sugerido</button>
+      <button class="btn btn-primary" data-rowact="modal">✎ Ingresar forecast (curva)</button>
+      <button class="btn btn-ghost" data-rowact="suggested">Aplicar sugerido</button>
       <button class="btn btn-ghost" data-rowact="plan">Copiar plan anterior</button>
       <button class="btn btn-ghost" data-rowact="lock">Bloquear fila</button>
       <button class="btn btn-ghost" data-rowact="unlock">Desbloquear fila</button>
     </div>
     <div class="section-sub">Limpieza de historia</div>
-    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los sugeridos por el sistema aparecen con borde violeta.</p>
+    <p class="muted small">Marcá los meses que fueron un proyecto puntual: dejan de contar para el promedio, la tendencia y la curva. Los que el sistema detecta como pico aparecen con borde dorado.</p>
     <div class="chips" id="dwClean"></div>
     <div class="section-sub">Proyectos (VULOPPS)</div>
     <div id="dwProj"></div>
