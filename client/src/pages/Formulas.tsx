@@ -177,7 +177,7 @@ function NewColorForm({ productId, onCreated, onCancel }: { productId: string; o
 
   return (
     <div className="card p-4 space-y-3">
-      <h3 className="font-semibold text-navy">Nuevo color</h3>
+      <h3 className="panel-head">Nuevo color</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label htmlFor="color-code" className="text-xs text-gray-dark">Código *</label>
@@ -277,7 +277,7 @@ function NewFormulaForm({ colorId, onCreated, onCancel }: { colorId: string; onC
   return (
     <div className="card p-4 space-y-4">
       <div>
-        <h3 className="font-semibold text-navy">Fórmula manual / personalizada</h3>
+        <h3 className="panel-head">Fórmula manual / personalizada</h3>
         <p className="text-xs text-gray-dark mt-1">
           Para colores "customizados" sin archivo Excel de origen. La Parte B (si el material es 2K) se toma de la asociación
           configurada en la pantalla de Productos, no se define aquí.

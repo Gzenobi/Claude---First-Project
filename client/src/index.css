@@ -1,38 +1,51 @@
 @import "tailwindcss";
 
+/* "Hull & Oxide" — paleta propia del proyecto, inspirada en pinturas
+   industriales y navales (primer anticorrosivo rojo óxido, pátina de bronce
+   verdigris), en reemplazo del branding institucional de AkzoNobel. Se
+   mantienen los nombres de los tokens anteriores (navy/sky/fuchsia/violet/
+   purple) para que cada clase de Tailwind ya usada en las páginas (text-navy,
+   bg-sky, etc.) tome el color nuevo sin tener que tocar archivo por archivo.
+   Mapeo semántico:
+     navy  -> ink       (texto principal, headers, sidebar, botones)
+     sky   -> oxide      (único acento: links, selección, progreso, alerta)
+     fuchsia -> oxide     (error/destructivo — mismo acento que sky)
+     violet -> ochre      (advertencia)
+     purple -> verdigris  (positivo/éxito, tercer color de gráficos) */
 @theme {
-  --color-navy: #003a70;
-  --color-sky: #008bc5;
-  --color-purple: #542c97;
-  --color-ultramarine: #000394;
-  --color-fuchsia: #e0457a;
-  --color-violet: #a8269a;
+  --color-navy: #1a1d1e;
+  --color-sky: #b23a1f;
+  --color-purple: #2f6b5e;
+  --color-ultramarine: #2f6b5e;
+  --color-fuchsia: #b23a1f;
+  --color-violet: #a67c27;
 
-  --color-navy-light: #8cb6d9;
-  --color-sky-light: #a3ddf5;
-  --color-purple-light: #a290c2;
-  --color-ultramarine-light: #999ad4;
-  --color-fuchsia-light: #ffb3d4;
-  --color-violet-light: #d292cc;
+  --color-navy-light: #d6d4ce;
+  --color-sky-light: #ecd9d2;
+  --color-purple-light: #d7e6e1;
+  --color-ultramarine-light: #d7e6e1;
+  --color-fuchsia-light: #ecd9d2;
+  --color-violet-light: #ecdfc4;
 
-  /* #868688 medía 3.4-3.6:1 sobre blanco (falla WCAG AA, mínimo 4.5:1 para
-     texto normal) — oscurecido a #5b6b7a, que sí pasa (~5.5:1), manteniendo
-     el mismo tono neutro. */
-  --color-gray-dark: #5b6b7a;
-  --color-gray-light: #b7b9ba;
+  /* Gris cálido (no azulado) para que acompañe al ink en vez del gris frío
+     de antes; ~5.3:1 de contraste sobre blanco, pasa WCAG AA. */
+  --color-gray-dark: #5c584f;
+  --color-gray-light: #c3bfb5;
 
-  /* Arial es la tipografía de marca para Office/HTML de uso interno; Helvetica
-     Neue queda reservada para piezas de marketing/diseño (ver skill de marca). */
-  --font-sans: Arial, "Helvetica Neue", "Segoe UI", sans-serif;
+  /* Archivo para texto de interfaz; IBM Plex Mono para códigos de
+     componente, estándares y cifras — no es disfraz "técnico", es el uso
+     real de una monoespaciada (medir y codificar es lo que hace la app). */
+  --font-sans: "Archivo", "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 :root {
   color-scheme: light;
-  --bg-app: #f4f6f9;
+  --bg-app: #efeeea;
   --bg-surface: #ffffff;
-  --border-subtle: #e2e6ec;
-  --text-primary: #1a2733;
-  --text-secondary: #5b6b7a;
+  --border-subtle: #dad7d0;
+  --text-primary: #1a1d1e;
+  --text-secondary: #5c584f;
 }
 
 html,
@@ -65,27 +78,26 @@ body {
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(26, 29, 30, 0.05);
 }
 
-/* Barra de sección: encabezado de paso dentro de una pantalla (ej. "1) Cargar
-   archivos"), en vez de un <h2> plano — da jerarquía fuerte sin agregar otro
-   color a la paleta. */
-.section-bar {
-  background: var(--color-navy);
-  color: white;
+/* Encabezado de panel: título simple con una regla fina abajo, como una hoja
+   de ficha técnica de laboratorio — reemplaza la barra de color sólido
+   (identidad Akzo) por tipografía y una línea, sin agregar otro color. */
+.panel-head {
+  display: block;
   font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-radius: 10px;
-  padding: 0.7rem 1.1rem;
+  font-size: 0.86rem;
+  color: var(--color-navy);
+  padding-bottom: 0.65rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .input {
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 0.6rem 0.85rem;
   font-size: 0.875rem;
   background: white;
@@ -94,20 +106,20 @@ body {
 }
 .input:focus {
   border-color: var(--color-sky);
-  box-shadow: 0 0 0 3px rgba(0, 139, 197, 0.15);
+  box-shadow: 0 0 0 3px rgba(178, 58, 31, 0.15);
 }
 
 .btn-primary {
   background: var(--color-navy);
   color: white;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 0.6rem 1.15rem;
   font-size: 0.875rem;
   font-weight: 600;
   transition: background 0.15s, transform 0.1s;
 }
 .btn-primary:hover {
-  background: #002850;
+  background: #000000;
 }
 .btn-primary:active {
   transform: scale(0.98);
@@ -121,14 +133,14 @@ body {
   background: white;
   color: var(--color-navy);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 0.6rem 1.15rem;
   font-size: 0.875rem;
   font-weight: 600;
   transition: background 0.15s, transform 0.1s;
 }
 .btn-secondary:hover {
-  background: #f4f6f9;
+  background: var(--bg-app);
 }
 .btn-secondary:active {
   transform: scale(0.98);
@@ -143,11 +155,11 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
 }
-/* Semáforo de marca (guía AkzoNobel): Sky = positivo, Violet = alerta,
-   Fuchsia = alerta fuerte/error — nunca verde/amarillo/rojo genéricos. */
+/* Semáforo propio: Verdigris = positivo, Ochre = alerta, Oxide = alerta
+   fuerte/error — nunca verde/amarillo/rojo genéricos de semáforo. */
 .badge-ok {
-  background: var(--color-sky-light);
-  color: var(--color-navy);
+  background: var(--color-purple-light);
+  color: var(--color-purple);
 }
 .badge-warning {
   background: var(--color-violet-light);

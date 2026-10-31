@@ -64,10 +64,10 @@ export function History() {
       </div>
 
       {compareId && compare && (
-        <div className="card p-5 border-l-4 border-l-navy">
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="font-semibold text-navy">Comparación de costos</h3>
-            <button className="text-gray-dark text-xs" onClick={() => setCompareId(null)}>
+        <div className="card p-5">
+          <div className="panel-head flex items-center justify-between">
+            <span>Comparación de costos</span>
+            <button className="text-gray-dark text-xs font-normal normal-case tracking-normal" onClick={() => setCompareId(null)}>
               Cerrar ✕
             </button>
           </div>

@@ -54,10 +54,10 @@ export function Dashboard() {
       </div>
 
       {data.formulasWithErrors > 0 ? (
-        <div className="card p-6 border-l-4 border-fuchsia flex items-center justify-between gap-6 flex-wrap">
-          <div>
-            <div className="text-4xl font-bold text-fuchsia leading-none">{data.formulasWithErrors}</div>
-            <p className="text-sm text-navy font-medium mt-2">
+        <div className="card p-6 flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="text-4xl font-mono font-semibold text-sky leading-none tabular-nums">{data.formulasWithErrors}</div>
+            <p className="text-sm text-navy font-medium max-w-md">
               {data.formulasWithErrors === 1 ? "Fórmula bloqueada" : "Fórmulas bloqueadas"} por falta de costo de al menos un
               componente.
             </p>
@@ -69,8 +69,8 @@ export function Dashboard() {
           )}
         </div>
       ) : (
-        <div className="card p-6 border-l-4 border-sky">
-          <p className="text-sm text-navy font-medium">Todas las fórmulas tienen costo completo — nada bloqueado.</p>
+        <div className="card p-6">
+          <p className="text-sm text-purple font-medium">Todas las fórmulas tienen costo completo — nada bloqueado.</p>
         </div>
       )}
 
@@ -91,7 +91,7 @@ export function Dashboard() {
 
       {timeline && (
         <div className="card p-5">
-          <div className="section-bar -mx-5 -mt-5 mb-4">Crecimiento del catálogo</div>
+          <div className="panel-head">Crecimiento del catálogo</div>
           {timeline.length === 0 ? (
             <p className="text-sm text-gray-dark">Todavía no hay colores ni fórmulas cargadas.</p>
           ) : (
@@ -105,12 +105,12 @@ export function Dashboard() {
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={timeline} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                   <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
-                  <XAxis dataKey="day" tickFormatter={formatDay} tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#5b6b7a" }} axisLine={false} tickLine={false} width={40} />
+                  <XAxis dataKey="day" tickFormatter={formatDay} tick={{ fontSize: 11, fill: "#5c584f" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#5c584f" }} axisLine={false} tickLine={false} width={40} />
                   <Tooltip labelFormatter={(d) => formatDay(String(d))} />
                   <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "colors" ? "Colores" : "Fórmulas")} />
-                  <Line type="monotone" dataKey="colors" name="colors" stroke="#003A70" strokeWidth={2} dot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="formulas" name="formulas" stroke="#008BC5" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="colors" name="colors" stroke="#1A1D1E" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="formulas" name="formulas" stroke="#B23A1F" strokeWidth={2} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </>
@@ -120,7 +120,7 @@ export function Dashboard() {
 
       {data.topMissingCostComponents.length > 0 && (
         <div className="card p-5">
-          <div className="section-bar -mx-5 -mt-5 mb-4">Componentes sin costo que más fórmulas bloquean</div>
+          <div className="panel-head">Componentes sin costo que más fórmulas bloquean</div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-dark uppercase border-b border-(--border-subtle)">
@@ -150,7 +150,7 @@ export function Dashboard() {
       )}
 
       <div className="card p-6">
-        <h2 className="font-semibold text-navy mb-3">Flujo recomendado</h2>
+        <h2 className="panel-head">Flujo recomendado</h2>
         <ol className="text-sm text-gray-dark space-y-2 list-decimal list-inside">
           <li>
             Importe la planilla maestra de costos en{" "}

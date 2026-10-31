@@ -5,8 +5,8 @@ import { api, type Product, type ColorSummary, type FormulaSummary, type Pricing
 import { SearchableSelect } from "../components/SearchableSelect";
 import { money, qty, pct, roleLabel } from "../lib/format";
 
-// Secuencia de marca para gráficos categóricos: Navy -> Sky -> Purple.
-const DONUT_COLORS = ["#003A70", "#008BC5", "#542C97"];
+// Secuencia de marca "Hull & Oxide" para gráficos categóricos: Ink -> Oxide -> Verdigris.
+const DONUT_COLORS = ["#1A1D1E", "#B23A1F", "#2F6B5E"];
 
 export function Calculate() {
   const [params, setParams] = useSearchParams();
@@ -173,13 +173,13 @@ export function Calculate() {
       {breakdown && (
         <>
           {breakdown.isIncomplete && (
-            <div role="alert" className="card p-4 border-l-4 border-l-fuchsia bg-fuchsia/5">
+            <div role="alert" className="card p-4">
               <div className="badge badge-error mb-1">CÁLCULO INCOMPLETO</div>
               <div className="text-sm text-gray-dark">{breakdown.incompleteReason}</div>
             </div>
           )}
           {!breakdown.isIncomplete && breakdown.formulaWarnings.length > 0 && (
-            <div role="status" className="card p-4 border-l-4 border-l-violet bg-violet/5">
+            <div role="status" className="card p-4">
               <div className="badge badge-warning mb-1">ADVERTENCIA</div>
               {breakdown.formulaWarnings.map((w, i) => (
                 <div key={i} className="text-sm text-gray-dark">
@@ -191,7 +191,7 @@ export function Calculate() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card p-5">
-              <div className="section-bar -mx-5 -mt-5 mb-4">Composición del costo</div>
+              <div className="panel-head">Composición del costo</div>
               {donutData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -217,7 +217,7 @@ export function Calculate() {
             </div>
 
             <div className="card p-5 text-sm">
-              <div className="section-bar -mx-5 -mt-5 mb-4">Resumen</div>
+              <div className="panel-head">Resumen</div>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="rounded-xl bg-sky/10 p-3">
                   <div className="text-xs text-gray-dark uppercase font-semibold">Costo / L</div>
@@ -246,22 +246,22 @@ export function Calculate() {
           </div>
 
           <div className="card p-5">
-            <div className="section-bar -mx-5 -mt-5 mb-4">Base</div>
+            <div className="panel-head">Base</div>
             <LinesTable lines={breakdown.lines.filter((l) => l.role === "BASE")} />
           </div>
           <div className="card p-5">
-            <div className="section-bar -mx-5 -mt-5 mb-4">Concentrados</div>
+            <div className="panel-head">Concentrados</div>
             <LinesTable lines={breakdown.lines.filter((l) => l.role === "CONCENTRATE")} />
           </div>
           {breakdown.productKind === "TWO_K" && (
             <div className="card p-5">
-              <div className="section-bar -mx-5 -mt-5 mb-4">Parte B</div>
+              <div className="panel-head">Parte B</div>
               <LinesTable lines={breakdown.lines.filter((l) => l.role === "PART_B")} />
             </div>
           )}
 
           <div className="card p-5">
-            <div className="section-bar -mx-5 -mt-5 mb-4">Simulador de contribución</div>
+            <div className="panel-head">Simulador de contribución</div>
             <div className="flex items-center gap-4">
               <input
                 type="range"

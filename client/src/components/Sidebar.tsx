@@ -52,9 +52,11 @@ export function Sidebar({
       >
         <div className="px-5 py-6 border-b border-white/10 flex items-start justify-between gap-2">
           <div>
-            <img src="/logos/akzonobel-white.svg" alt="AkzoNobel" className="h-[31px] w-auto mb-3" />
-            <div className="text-lg font-bold leading-tight">Cálculo de Costo -<br />Chromascan</div>
-            <div className="text-xs text-white/70 mt-1">International Paint | Costing &amp; Pricing Tool</div>
+            <div className="flex items-baseline gap-2">
+              <span className="inline-block w-[9px] h-[9px] rounded-[1px] bg-sky -translate-y-px" aria-hidden="true" />
+              <span className="text-lg font-extrabold tracking-tight">Chromascan</span>
+            </div>
+            <div className="text-xs text-white/60 mt-1.5 leading-snug">Costeo y precios de color · formulación industrial</div>
           </div>
           <button ref={closeButtonRef} className="md:hidden text-white/70 hover:text-white shrink-0" onClick={onClose} aria-label="Cerrar menú">
             <IconClose className="w-5 h-5" />

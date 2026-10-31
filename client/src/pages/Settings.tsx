@@ -27,7 +27,7 @@ export function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-navy">General</h2>
+        <h2 className="panel-head">General</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="settings-contribution" className="text-xs text-gray-dark uppercase">Contribución por defecto (%)</label>

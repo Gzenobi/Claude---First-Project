@@ -122,7 +122,6 @@ export function Header({
         <span className="hidden sm:inline-flex">
           <span className="badge badge-ok">DEMO DATA incluida</span>
         </span>
-        <img src="/logos/international-blue.png" alt="International" className="h-6 md:h-7 w-auto" />
       </div>
     </header>
   );

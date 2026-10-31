@@ -386,7 +386,7 @@ export function Products() {
               </div>
 
               <div className="card p-5">
-                <h3 className="font-semibold text-navy mb-2">Colores ({colors.length})</h3>
+                <h3 className="panel-head">Colores ({colors.length})</h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-gray-dark uppercase border-b border-(--border-subtle)">

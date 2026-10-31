@@ -146,8 +146,8 @@ export function ImportCosts() {
       )}
 
       {needsMapping.length > 0 && (
-        <div className="card p-4 border-l-4 border-l-violet">
-          <h3 className="font-semibold mb-2">Archivos que requieren mapeo de columnas</h3>
+        <div className="card p-4">
+          <h3 className="panel-head">Archivos que requieren mapeo de columnas</h3>
           {needsMapping.map((f) => (
             <div key={f.fileName} className="flex justify-between items-center py-1 text-sm">
               <span>{f.fileName}</span>
@@ -174,7 +174,7 @@ export function ImportCosts() {
 
       {preview && (
         <div className="card p-5">
-          <div className="section-bar -mx-5 -mt-5 mb-4">Vista previa</div>
+          <div className="panel-head">Vista previa</div>
           <p className="text-sm text-gray-dark mb-3">
             {preview.totals.new} nuevo(s), {preview.totals.updated} actualizado(s), {preview.totals.unchanged} sin cambios,{" "}
             {preview.totals.rejected} rechazado(s), {preview.totals.noCost} sin costo en el origen
@@ -219,7 +219,7 @@ export function ImportCosts() {
 
       {result && (
         <div className="card p-5">
-          <div className="section-bar -mx-5 -mt-5 mb-4">Resumen de importación</div>
+          <div className="panel-head">Resumen de importación</div>
           <ul className="text-sm space-y-1">
             <li>Nuevos: {result.new}</li>
             <li>Actualizados: {result.updated}</li>
@@ -262,7 +262,7 @@ function CostMappingWizard({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="card bg-white p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
-        <div className="section-bar -mx-6 -mt-6 mb-4">Mapear columnas — {fileName}</div>
+        <div className="panel-head">Mapear columnas — {fileName}</div>
         <p className="text-xs text-gray-dark mb-4">Asocie cada campo del sistema con la columna correspondiente del Excel.</p>
         <div className="grid grid-cols-2 gap-3">
           {fields.map((f) => (

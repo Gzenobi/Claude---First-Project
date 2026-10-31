@@ -18,11 +18,21 @@ Estas son decisiones que el usuario (Gabriel) ya tomó. No volver a preguntarlas
   - La contraseña real de la base está solo en la variable de entorno `DATABASE_URL` de Render (Environment tab del Web Service) — no se guarda en este repo ni en `server/.env` de producción.
 - Supabase marcó **RLS (Row Level Security) deshabilitado** en las 15 tablas como hallazgo de seguridad crítico por defecto — en principio no aplica como riesgo real acá porque la app nunca usa la API de Supabase ni expone la anon key al navegador (el backend Express se conecta directo por `DATABASE_URL`, sin pasar por PostgREST), pero quedó pendiente decidir si habilitarlo igual por las dudas (el usuario no lo confirmó todavía).
 
-## Identidad visual
+## Identidad visual — "Hull & Oxide" (2026-10-31, reemplaza el branding AkzoNobel)
 
-- Navy institucional: **`#003A70`** (elegido por el usuario sobre el `#005192` del manual de marca oficial — es una decisión consciente, no un error).
-- Logos: AkzoNobel (blanco) en el Sidebar sobre fondo navy; International (color) en el Header sobre fondo blanco. Assets reales en `client/public/logos/`, nunca recrear los logos.
-- Encabezados de sección usan la clase `.section-bar` (navy, bleed a los bordes de la card vía `-mx-5 -mt-5` o `-mx-6 -mt-6`), no `<h2>`/`<h3>` planos.
+**DECISIÓN ACTUALIZADA**: se abandonó por completo el branding de AkzoNobel/International ("Rediseñemos, salgamos del branding de AKZO y busquemos algo mas moderno y funcional" — decisión explícita del usuario). Ya no aplica nada del manual de marca oficial de AkzoNobel para esta app. No reintroducir el navy `#003A70`, los logos de AkzoNobel/International, ni `.section-bar` sin que el usuario lo pida explícitamente.
+
+- Sistema de diseño propio **"Hull & Oxide"**, inspirado en pinturas industriales/marinas reales (primer anticorrosivo rojo-óxido, pátina verdigris de herrajes de bronce) en vez de defaults genéricos de SaaS. Validado primero con un mockup interactivo (Artifact) antes de aplicarlo a toda la app real.
+- Paleta (tokens Tailwind v4 en `client/src/index.css`, vía `@theme`; los **nombres** de token quedaron igual que antes — `navy`, `sky`, `fuchsia`, `violet`, `purple` — solo cambiaron los **valores hex**, lo que permitió re-aplicar el rebrand global sin tocar la mayoría de los componentes):
+  - `navy` → **ink** `#1a1d1e` (texto, headers, botones, fondo del Sidebar).
+  - `sky` y `fuchsia` → **oxide** `#b23a1f` (mismo hex a propósito: único acento/link/selección y también el color de error/destructivo).
+  - `violet` → **ochre** `#a67c27` (advertencias).
+  - `purple`/`ultramarine` → **verdigris** `#2f6b5e` (positivo/success, 3er color de gráficos).
+  - `gray-dark` → gris cálido `#5c584f` (antes un gris frío `#5b6b7a`) — si aparece `#5b6b7a` hardcodeado en algún lado es un resabio viejo a corregir, no usar ese valor nunca más.
+- Tipografía: **Archivo** (sans, UI) + **IBM Plex Mono** (códigos de componente, cifras de datos) vía Google Fonts, cargadas en `client/index.html`.
+- Logos: **ninguno**. Se quitaron los logos de AkzoNobel (`akzonobel-white.svg`) e International (`international-blue.png`) del Sidebar/Header; en su lugar hay un wordmark propio "Chromascan" (cuadradito de acento `bg-sky` + texto) en `Sidebar.tsx`. Los archivos de logo en `client/public/logos/` quedaron sin referenciar — se pueden borrar si se quiere limpiar.
+- Encabezados de sub-sección usan la clase **`.panel-head`** (texto en negrita + una sola línea fina inferior `border-bottom`, sin relleno de color) — reemplaza a `.section-bar` (la barra sólida navy de la era AkzoNobel), que ya no se usa en ningún lado.
+- Se eliminó el patrón `border-l-4` (borde izquierdo de color grueso en cards de alerta) en toda la app — quedaba redundante con los `.badge` de estado y había sido marcado como anti-patrón ("side-tab") por el skill `/impeccable`. No reintroducirlo.
 - Nombres de producto en sentence case (ej. `Interthane 3230SG`), nunca ALL CAPS, al fusionar/renombrar.
 
 ## Consolidación de productos (fusión por marca)
