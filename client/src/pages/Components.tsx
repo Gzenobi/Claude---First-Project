@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { api, type ComponentRow } from "../api";
-import { money } from "../lib/format";
+import { money, roleLabel } from "../lib/format";
 
 export function Components() {
   const [items, setItems] = useState<ComponentRow[]>([]);
@@ -44,7 +44,7 @@ export function Components() {
       <div className="flex gap-2">
         {["", "BASE", "CONCENTRATE", "PART_B"].map((t) => (
           <button key={t} className={typeFilter === t ? "btn-primary" : "btn-secondary"} onClick={() => setTypeFilter(t)}>
-            {t || "Todos"}
+            {t ? roleLabel(t) : "Todos"}
           </button>
         ))}
       </div>
@@ -98,7 +98,7 @@ export function Components() {
                     {c.code} {c.isDemo && <span className="badge badge-ok ml-1">DEMO</span>}
                   </td>
                   <td className="py-2 px-3">{c.description}</td>
-                  <td className="py-2 px-3">{c.type}</td>
+                  <td className="py-2 px-3">{roleLabel(c.type)}</td>
                   <td className="py-2 px-3">{c.density ?? "—"}</td>
                   <td className="py-2 px-3 text-right">
                     {c.currentCost ? (
