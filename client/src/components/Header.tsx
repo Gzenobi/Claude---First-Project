@@ -42,7 +42,12 @@ export function Header({
 
   return (
     <header className="h-16 shrink-0 bg-white border-b border-(--border-subtle) flex items-center px-4 md:px-6 gap-3 md:gap-4">
-      <button ref={menuButtonRef} className="md:hidden text-navy shrink-0" onClick={onOpenSidebar} aria-label="Abrir menú">
+      <button
+        ref={menuButtonRef}
+        className="md:hidden text-navy shrink-0 active:scale-90 transition-transform"
+        onClick={onOpenSidebar}
+        aria-label="Abrir menú"
+      >
         <IconMenu className="w-6 h-6" />
       </button>
       <div className="relative w-full max-w-md" ref={boxRef}>
@@ -57,7 +62,7 @@ export function Header({
         />
         <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-dark w-4 h-4 pointer-events-none" />
         {open && q && (
-          <div className="absolute mt-1 w-full card z-50 max-h-96 overflow-y-auto text-sm">
+          <div className="absolute mt-1 w-full card glass-light glass-pop-in z-50 max-h-96 overflow-y-auto text-sm" style={{ transformOrigin: "top" }}>
             {!hasResults && <div className="p-3 text-gray-dark">Sin resultados para "{q}".</div>}
             {results && results.products.length > 0 && (
               <div className="p-2">

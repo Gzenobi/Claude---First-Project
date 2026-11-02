@@ -169,3 +169,65 @@ body {
   background: var(--color-fuchsia-light);
   color: var(--color-fuchsia);
 }
+
+/* "Vidrio" — dirección de movimiento elegida por el usuario sobre Hull &
+   Oxide: las superficies que de verdad se superponen a otro contenido (el
+   drawer mobile, el dropdown de búsqueda, los modales) son material
+   translúcido real en vez de un fondo liso — nunca decorativo en superficies
+   que no tapan nada detrás. */
+.glass-dark {
+  background: rgba(26, 29, 30, 0.86);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.glass-light {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-dark {
+    background: var(--color-navy);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .glass-light {
+    background: var(--bg-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* El rail del Sidebar solo se superpone al contenido en mobile (overlay);
+   en desktop va en flujo normal junto al contenido, así que el material
+   vuelve a ser sólido — y se neutraliza el arrastre JS, que tampoco aplica
+   ahí. Reglas en hoja propia (no @layer) para ganarle a cualquier utilidad
+   `md:` de Tailwind sin pelear de especificidad. */
+@media (min-width: 768px) {
+  .sidebar-drawer {
+    background: var(--color-navy) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+}
+
+@keyframes glass-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.glass-pop-in {
+  animation: glass-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-pop-in {
+    animation: none;
+  }
+}

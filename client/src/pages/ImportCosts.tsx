@@ -260,8 +260,8 @@ function CostMappingWizard({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="card bg-white p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/45 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+      <div className="card glass-light glass-pop-in p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
         <div className="panel-head">Mapear columnas — {fileName}</div>
         <p className="text-xs text-gray-dark mb-4">Asocie cada campo del sistema con la columna correspondiente del Excel.</p>
         <div className="grid grid-cols-2 gap-3">

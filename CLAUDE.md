@@ -35,6 +35,18 @@ Estas son decisiones que el usuario (Gabriel) ya tomó. No volver a preguntarlas
 - Se eliminó el patrón `border-l-4` (borde izquierdo de color grueso en cards de alerta) en toda la app — quedaba redundante con los `.badge` de estado y había sido marcado como anti-patrón ("side-tab") por el skill `/impeccable`. No reintroducirlo.
 - Nombres de producto en sentence case (ej. `Interthane 3230SG`), nunca ALL CAPS, al fusionar/renombrar.
 
+## Movimiento/interacción — "Vidrio" (2026-11-02)
+
+**DECISIÓN TOMADA**: entre 5 personalidades de interacción propuestas (basadas en el skill `anthropic-skills:apple-design` — springs en vez de animaciones de duración fija), el usuario eligió **Vidrio**: superficies de material translúcido real (`backdrop-filter: blur`) en los paneles que de verdad se superponen a otro contenido, no como fondo decorativo en superficies que no tapan nada detrás.
+
+- Implementado sobre la paleta Hull & Oxide (no se cambió color, solo movimiento/materialidad).
+- `client/src/lib/spring.ts`: motor de spring reutilizable (`createSpring`, `rubberband`, `project`, `prefersReducedMotion`) parametrizado como Apple (damping ratio + response, no stiffness/damping crudos). Usar este motor para cualquier nueva interacción arrastrable — no CSS transitions para gestos.
+- `.glass-dark` / `.glass-light` / `.glass-pop-in` en `client/src/index.css`: utilidades de vidrio, con fallback a superficie sólida bajo `prefers-reduced-transparency: reduce` y sin animación bajo `prefers-reduced-motion: reduce`.
+- **Drawer mobile del Sidebar**: ya no es una transición CSS de ancho fijo — se arrastra 1:1 con el dedo/puntero, tiene rubber-band en los bordes, hereda la velocidad del gesto al soltar y proyecta el destino (como scroll con inercia). Translúcido+blur solo en mobile (overlay real sobre el contenido); en desktop vuelve a ser sólido porque ahí va en flujo normal, no superpuesto — ver el `@media (min-width: 768px)` sobre `.sidebar-drawer` en `index.css` (necesario para ganarle a las utilidades `md:` de Tailwind, que son CSS en capa y pierden contra CSS sin capa por diseño del navegador).
+- Dropdown de búsqueda del Header y el modal `MappingWizard`/`CostMappingWizard` (Import Fórmulas/Costos) usan `.glass-light` + `.glass-pop-in`, anclados a su disparador (`transform-origin`).
+- Header y barra superior **no** se hicieron translúcidos: en el layout actual no se superponen a contenido que scrollea debajo (están en su propia fila del flex, no flotando), así que el efecto vidrio no aportaría nada ahí sin un rediseño de layout mayor — no se hizo esa reestructuración.
+- Si se agregan nuevos paneles flotantes/modales/menús, seguir el mismo patrón: `.glass-light` sobre fondo claro o `.glass-dark` sobre fondo oscuro, `.glass-pop-in` para la entrada, `transform-origin` apuntando al disparador, y el motor de `spring.ts` si hay arrastre de por medio.
+
 ## Consolidación de productos (fusión por marca)
 
 Regla general: **nunca fusionar automáticamente por similitud de nombre** — solo fusión manual confirmada por el usuario, porque variantes de nombre a veces son productos realmente distintos.
